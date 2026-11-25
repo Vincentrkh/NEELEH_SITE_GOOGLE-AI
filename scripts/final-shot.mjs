@@ -1,0 +1,15 @@
+import { chromium } from "playwright";
+const browser = await chromium.launch({ headless: true });
+const ctx = await browser.newContext({ viewport: { width: 1920, height: 842 } });
+const page = await ctx.newPage();
+await page.context().addCookies([{ name: "neeleh_skin", value: "tresmares", url: "http://localhost:3000" }]);
+await page.goto("http://localhost:3000", { waitUntil: "domcontentloaded", timeout: 45000 });
+await page.waitForFunction(() => !!window.__tmScene, { timeout: 30000 });
+await page.waitForTimeout(4500);
+await page.screenshot({ path: "/tmp/vid/final_center.jpg", type: "jpeg", quality: 90, clip: { x: 0, y: 0, width: 1920, height: 842 }, timeout: 20000 });
+await page.mouse.move(1812, 743, { steps: 8 });
+await page.evaluate(() => window.__tmScene.jump(0.887, -0.765));
+await page.waitForTimeout(800);
+await page.screenshot({ path: "/tmp/vid/final_br.jpg", type: "jpeg", quality: 90, clip: { x: 0, y: 0, width: 1920, height: 842 }, timeout: 20000 });
+await browser.close();
+console.log("ok");

@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 400 200" preserveAspectRatio="none">
+  <!--
+    خط دست‌نویس تک با گوشه‌های overshoot.
+    خطوط از گوشه‌ها عبور می‌کنند (نه بسته) — مثل تصویر مرجع.
+    نقاط نامنظم برای wobble کم‌فرکانس.
+    stroke-width=2 برای اطمینان از یکنواختی ضخامت در همه‌جا.
+  -->
+  <!-- خط بالا (چپ به راست) — کمی قبل از گوشه شروع، کمی بعد از گوشه راست عبور می‌کند -->
+  <polyline points="-8,7 30,5 60,8 95,5 130,8 165,5 200,8 235,5 270,8 305,5 340,8 408,6"
+            fill="none" stroke="#1a1a1a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- خط راست (بالا به پایین) — از گوشه بالا عبور می‌کند، کمی بعد از گوشه پایین -->
+  <polyline points="394,-8 392,30 395,60 393,95 396,130 392,165 394,208"
+            fill="none" stroke="#1a1a1a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- خط پایین (راست به چپ) — از گوشه راست عبور، کمی قبل از گوشه چپ متوقف -->
+  <polyline points="408,193 340,195 305,192 270,195 235,192 200,195 165,192 130,195 95,192 60,195 30,193 -8,194"
+            fill="none" stroke="#1a1a1a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- خط چپ (پایین به بالا) — از گوشه پایین عبور، کمی بعد از گوشه بالا -->
+  <polyline points="6,208 8,165 5,130 7,95 4,60 6,30 -8,-8"
+            fill="none" stroke="#1a1a1a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

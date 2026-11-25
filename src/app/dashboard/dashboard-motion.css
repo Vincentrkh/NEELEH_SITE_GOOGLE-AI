@@ -1,0 +1,336 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   DASHBOARD MOTION — لایه حرکت و عمق پنل مدیریت آکادمی نیله
+   ───────────────────────────────────────────────────────────────────────────
+   چی ساخته می‌شود:
+     • پس‌زمینه Aurora — هاله‌های گرادیانی نرم و بسیار کُند که مدام شناورند
+     • ورود صفحه (page-enter) — کل محتوا با fade+rise ظاهر می‌شود
+     • ورود پلکانی کارت‌ها (stagger) — blur→sharp با تأخیر آبشاری
+     • شمارش اعداد آمار (CountUp) — کامپوننت کلاینت
+     • شاین (shine sweep) روی کارت‌های آمار و دکمه‌های اصلی
+     • خط مویی بالای کارت‌ها که موقع لود «رشد» می‌کند
+     • آبشاری آیتم‌های ساید‌بار با slide جهت‌آگاه (RTL/LTR)
+     • هاور حرفه‌ای: lift سایه‌دار، بزرگ‌شدن آیکون، درخشش دکمه
+     • نقطه فعال منو با پالس زنده
+     • آبشاری ردیف‌های جدول و لیست‌ها
+     • همه با prefers-reduced-motion غیرفعال می‌شوند
+   نکته فنی: همه ورودها با fill-mode: backwards هستند تا بعد از پایان
+   انیمیشن، transform آزاد شود و هاورها کار کنند.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ═══ ۰. Keyframes ═══════════════════════════════════════════════════════ */
+
+@keyframes ds-page-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes ds-rise {
+  from { opacity: 0; transform: translateY(16px) scale(0.985); filter: blur(6px); }
+  55%  { filter: blur(0); }
+  to   { opacity: 1; transform: none; filter: blur(0); }
+}
+
+@keyframes ds-row-in {
+  from { opacity: 0; transform: translateY(7px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes ds-nav-in {
+  from { opacity: 0; transform: translateX(var(--ds-nx, -12px)); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes ds-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes ds-shine {
+  from { transform: translateX(-170%) skewX(-14deg); }
+  to   { transform: translateX(340%) skewX(-14deg); }
+}
+
+@keyframes ds-line-grow {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+
+@keyframes ds-pulse-dot {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.4); }
+  50%      { box-shadow: 0 0 0 5px rgba(255, 255, 255, 0); }
+}
+
+@keyframes ds-aurora {
+  0%   { transform: translate3d(0, 0, 0) scale(1) rotate(0deg); }
+  50%  { transform: translate3d(2.5%, -2%, 0) scale(1.07) rotate(1.6deg); }
+  100% { transform: translate3d(-2%, 2.5%, 0) scale(1.03) rotate(-1.2deg); }
+}
+
+/* ═══ ۱. پس‌زمینه Aurora — هاله‌های زنده ═════════════════════════════════ */
+
+.dashboard-scene::before {
+  content: "";
+  position: fixed;
+  inset: -22%;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(36% 30% at 16% 10%, rgba(24, 24, 27, 0.05), transparent 72%),
+    radial-gradient(30% 26% at 86% 6%, rgba(24, 24, 27, 0.04), transparent 72%),
+    radial-gradient(34% 30% at 80% 90%, rgba(24, 24, 27, 0.05), transparent 72%),
+    radial-gradient(26% 22% at 8% 82%, rgba(24, 24, 27, 0.035), transparent 72%);
+  filter: blur(44px);
+  animation: ds-aurora 28s ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+.dashboard-scene.dark-scene::before {
+  background:
+    radial-gradient(36% 30% at 16% 10%, rgba(255, 255, 255, 0.055), transparent 72%),
+    radial-gradient(30% 26% at 86% 6%, rgba(255, 255, 255, 0.04), transparent 72%),
+    radial-gradient(34% 30% at 80% 90%, rgba(255, 255, 255, 0.05), transparent 72%),
+    radial-gradient(26% 22% at 8% 82%, rgba(255, 255, 255, 0.035), transparent 72%);
+}
+
+/* محتوا روی لایه Aurora بنشیند */
+.dashboard-scene > main {
+  position: relative;
+}
+
+/* ═══ ۲. ورود صفحه — template.tsx هر بار ناوبری remount می‌کند ══════════ */
+
+.ds-page {
+  animation: ds-page-in 460ms var(--ds-ease) backwards;
+}
+
+/* ═══ ۳. سیستم stagger — ورود پلکانی بچه‌ها ═════════════════════════════ */
+
+.ds-stagger > * {
+  animation: ds-rise 560ms var(--ds-ease) backwards;
+}
+.ds-stagger > *:nth-child(1)  { animation-delay: 100ms; }
+.ds-stagger > *:nth-child(2)  { animation-delay: 165ms; }
+.ds-stagger > *:nth-child(3)  { animation-delay: 230ms; }
+.ds-stagger > *:nth-child(4)  { animation-delay: 295ms; }
+.ds-stagger > *:nth-child(5)  { animation-delay: 360ms; }
+.ds-stagger > *:nth-child(6)  { animation-delay: 425ms; }
+.ds-stagger > *:nth-child(7)  { animation-delay: 490ms; }
+.ds-stagger > *:nth-child(8)  { animation-delay: 555ms; }
+.ds-stagger > *:nth-child(n + 9) { animation-delay: 620ms; }
+
+/* ═══ ۴. کارت آمار — خط مویی، شاین، هاور ═══════════════════════════════ */
+
+.dashboard-scene :where(main) .rounded-lg.border.border-border.bg-card.ds-stat {
+  position: relative;
+  overflow: hidden;
+  transition:
+    transform 320ms var(--ds-ease),
+    box-shadow 320ms var(--ds-ease),
+    border-color 320ms var(--ds-ease) !important;
+}
+
+/* خط مویی بالای کارت — بعد از فرود کارت رشد می‌کند */
+.dashboard-scene :where(main) .ds-stat::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 14px;
+  right: 14px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--ds-ink) 50%, transparent);
+  opacity: 0.32;
+  transform: scaleX(0);
+  transform-origin: center;
+  animation: ds-line-grow 760ms var(--ds-ease-out) 480ms forwards;
+  pointer-events: none;
+}
+
+/* شاین — یک جارو نرم روی سطح کارت */
+.dashboard-scene :where(main) .ds-stat::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    104deg,
+    transparent 42%,
+    rgba(255, 255, 255, 0.55) 50%,
+    transparent 58%
+  );
+  transform: translateX(-170%) skewX(-14deg);
+  animation: ds-shine 1150ms var(--ds-ease-out) 620ms 1 both;
+  pointer-events: none;
+}
+.dashboard-scene :where(main) .ds-stagger > *:nth-child(2) .ds-stat::after { animation-delay: 690ms; }
+.dashboard-scene :where(main) .ds-stagger > *:nth-child(3) .ds-stat::after { animation-delay: 760ms; }
+.dashboard-scene :where(main) .ds-stagger > *:nth-child(4) .ds-stat::after { animation-delay: 830ms; }
+.dashboard-scene :where(main) .ds-stagger > *:nth-child(5) .ds-stat::after { animation-delay: 900ms; }
+.dashboard-scene :where(main) .ds-stagger > *:nth-child(6) .ds-stat::after { animation-delay: 970ms; }
+.dashboard-scene :where(main) .ds-stagger > *:nth-child(n + 7) .ds-stat::after { animation-delay: 1040ms; }
+
+/* دارک — شاین خیلی ملایم‌تر */
+.dashboard-scene.dark-scene :where(main) .ds-stat::after {
+  background: linear-gradient(
+    104deg,
+    transparent 42%,
+    rgba(255, 255, 255, 0.07) 50%,
+    transparent 58%
+  );
+}
+
+/* هاور — بلند شدن با سایه عمقی */
+.dashboard-scene :where(main) .rounded-lg.border.border-border.bg-card.ds-stat:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--ds-shadow-lg) !important;
+  border-color: var(--ds-muted-light) !important;
+}
+
+/* عدد آمار — گرادیان عمودی ظریف، تایپوگرافی بزرگ‌تر */
+.dashboard-scene :where(main) .ds-stat .text-2xl,
+.dashboard-scene :where(main) .ds-stat .text-3xl {
+  font-size: 28px !important;
+  background-image: linear-gradient(180deg, var(--ds-ink) 18%, var(--ds-muted) 135%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: var(--ds-ink);
+}
+
+/* آیکون — با هاور بزرگ می‌شود */
+.dashboard-scene :where(main) .ds-stat svg {
+  transition: color 220ms var(--ds-ease-out), transform 380ms var(--ds-ease);
+}
+.dashboard-scene :where(main) .ds-stat:hover svg {
+  color: var(--ds-ink) !important;
+  transform: scale(1.14);
+}
+
+@media (max-width: 640px) {
+  .dashboard-scene :where(main) .ds-stat .text-2xl,
+  .dashboard-scene :where(main) .ds-stat .text-3xl {
+    font-size: 24px !important;
+  }
+}
+
+/* ═══ ۵. Quick actions — هاور lift ══════════════════════════════════════ */
+
+.dashboard-scene :where(main) a.ds-quick {
+  transition:
+    transform 300ms var(--ds-ease),
+    box-shadow 300ms var(--ds-ease),
+    border-color 300ms var(--ds-ease),
+    background 200ms var(--ds-ease-out);
+}
+.dashboard-scene :where(main) a.ds-quick:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--ds-shadow-md);
+  border-color: var(--ds-muted-light);
+}
+
+/* ═══ ۶. دکمه اصلی — شاین هنگام هاور ════════════════════════════════════ */
+
+.dashboard-scene :where(main) button[class*="bg-primary"],
+.dashboard-scene :where(main) a[class*="bg-primary"] {
+  position: relative;
+  overflow: hidden;
+}
+.dashboard-scene :where(main) button[class*="bg-primary"]::after,
+.dashboard-scene :where(main) a[class*="bg-primary"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.32) 50%,
+    transparent 70%
+  );
+  transform: translateX(-170%) skewX(-14deg);
+  pointer-events: none;
+}
+.dashboard-scene :where(main) button[class*="bg-primary"]:hover::after,
+.dashboard-scene :where(main) a[class*="bg-primary"]:hover::after {
+  animation: ds-shine 780ms var(--ds-ease-out);
+}
+
+/* ═══ ۷. ساید‌بار — آبشاری ورود ═════════════════════════════════════════ */
+
+.dashboard-scene :where(aside) .ds-side-fade {
+  animation: ds-fade 560ms var(--ds-ease-out) backwards;
+}
+
+.dashboard-scene :where(aside) .ds-nav-item {
+  --ds-nx: -12px;
+  animation: ds-nav-in 480ms var(--ds-ease) backwards;
+}
+html[dir="rtl"] .dashboard-scene :where(aside) .ds-nav-item {
+  --ds-nx: 12px;
+}
+
+/* نقطه فعال — پالس زنده (قبلاً مخفی بود) */
+.dashboard-scene :where(aside) nav a[class*="bg-secondary"] span.rounded-full.bg-foreground {
+  display: block !important;
+  background: #ffffff !important;
+  animation: ds-pulse-dot 2600ms var(--ds-ease-out) infinite;
+}
+
+/* آیتم فعال — هاله داخلی ظریف */
+.dashboard-scene :where(aside) nav a[class*="bg-secondary"] {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14) !important;
+}
+
+/* ═══ ۸. جدول‌ها و لیست‌ها — آبشاری ردیف‌ها ══════════════════════════════ */
+
+.dashboard-scene :where(main) tbody tr {
+  animation: ds-row-in 420ms var(--ds-ease-out) backwards;
+}
+.dashboard-scene :where(main) tbody tr:nth-child(1)  { animation-delay: 60ms; }
+.dashboard-scene :where(main) tbody tr:nth-child(2)  { animation-delay: 105ms; }
+.dashboard-scene :where(main) tbody tr:nth-child(3)  { animation-delay: 150ms; }
+.dashboard-scene :where(main) tbody tr:nth-child(4)  { animation-delay: 195ms; }
+.dashboard-scene :where(main) tbody tr:nth-child(5)  { animation-delay: 240ms; }
+.dashboard-scene :where(main) tbody tr:nth-child(6)  { animation-delay: 285ms; }
+.dashboard-scene :where(main) tbody tr:nth-child(7)  { animation-delay: 330ms; }
+.dashboard-scene :where(main) tbody tr:nth-child(8)  { animation-delay: 375ms; }
+.dashboard-scene :where(main) tbody tr:nth-child(9)  { animation-delay: 420ms; }
+.dashboard-scene :where(main) tbody tr:nth-child(10) { animation-delay: 465ms; }
+.dashboard-scene :where(main) tbody tr:nth-child(n + 11) { animation-delay: 500ms; }
+
+.dashboard-scene :where(main) ul.divide-y > li {
+  animation: ds-row-in 420ms var(--ds-ease-out) backwards;
+}
+.dashboard-scene :where(main) ul.divide-y > li:nth-child(1)  { animation-delay: 90ms; }
+.dashboard-scene :where(main) ul.divide-y > li:nth-child(2)  { animation-delay: 135ms; }
+.dashboard-scene :where(main) ul.divide-y > li:nth-child(3)  { animation-delay: 180ms; }
+.dashboard-scene :where(main) ul.divide-y > li:nth-child(4)  { animation-delay: 225ms; }
+.dashboard-scene :where(main) ul.divide-y > li:nth-child(5)  { animation-delay: 270ms; }
+.dashboard-scene :where(main) ul.divide-y > li:nth-child(6)  { animation-delay: 315ms; }
+.dashboard-scene :where(main) ul.divide-y > li:nth-child(7)  { animation-delay: 360ms; }
+.dashboard-scene :where(main) ul.divide-y > li:nth-child(8)  { animation-delay: 405ms; }
+.dashboard-scene :where(main) ul.divide-y > li:nth-child(9)  { animation-delay: 450ms; }
+.dashboard-scene :where(main) ul.divide-y > li:nth-child(10) { animation-delay: 495ms; }
+.dashboard-scene :where(main) ul.divide-y > li:nth-child(n + 11) { animation-delay: 530ms; }
+
+/* ═══ ۹. دکمه سوئیچ تم — چرخش ظریف ═════════════════════════════════════ */
+
+.dashboard-theme-toggle svg {
+  transition: transform 420ms var(--ds-ease);
+}
+.dashboard-theme-toggle:hover svg {
+  transform: rotate(-24deg) scale(1.1);
+}
+
+/* ═══ ۱۰. Reduced motion — همه افکت‌ها خاموش ═══════════════════════════ */
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-scene::before {
+    animation: none !important;
+  }
+  .dashboard-scene *,
+  .dashboard-scene *::before,
+  .dashboard-scene *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    transition-duration: 0.01ms !important;
+    transform: none !important;
+  }
+}

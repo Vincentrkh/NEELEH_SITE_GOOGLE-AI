@@ -1,0 +1,316 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   DASHBOARD VECTOR SKETCH CITY + MATTE FROSTED GLASS POPUPS
+   شهر اسکیس معماری برداری + پنجره‌های شیشه‌ای مات قابل جابجایی و مینیمم
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.dashboard-city-theme {
+  --city-bg: #ecece8;
+  --city-ink: #1e293b;
+  --city-ink-soft: #475569;
+  --city-muted: #64748b;
+  --city-blue: #3b82f6;
+  --city-blue-deep: #2563eb;
+  --city-sans: "Inter", "Estedad Var", "Vazirmatn Var", -apple-system,
+    BlinkMacSystemFont, sans-serif;
+
+  /* Tailwind / shadcn token mapping */
+  --background: #ecece8;
+  --foreground: #1e293b;
+  --card: rgba(255, 255, 255, 0.68);
+  --card-foreground: #1e293b;
+  --popover: rgba(250, 251, 253, 0.92);
+  --popover-foreground: #1e293b;
+  --primary: #3b82f6;
+  --primary-foreground: #ffffff;
+  --secondary: rgba(226, 232, 240, 0.58);
+  --secondary-foreground: #1e293b;
+  --muted: rgba(226, 232, 240, 0.52);
+  --muted-foreground: #64748b;
+  --accent: rgba(59, 130, 246, 0.12);
+  --accent-foreground: #1d4ed8;
+  --destructive: #ef4444;
+  --border: rgba(148, 163, 184, 0.34);
+  --input: rgba(148, 163, 184, 0.38);
+  --ring: #3b82f6;
+
+  font-family: var(--city-sans);
+  color: var(--city-ink);
+  background: #ecece8;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* مخفی کردن سوئیچر سایت اصلی در پنل مدیریت */
+.skin-switcher {
+  display: none !important;
+}
+
+/* ── پنجره‌های پاپ‌آپ و کارت‌های شیشه‌ای مات (Matte Frosted Glass) ── */
+.city-frosted-window {
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    inset 0 0 24px rgba(255, 255, 255, 0.25),
+    0 28px 64px -14px rgba(15, 23, 42, 0.28),
+    0 6px 18px -4px rgba(15, 23, 42, 0.14);
+}
+
+.city-frosted-blur {
+  background: linear-gradient(
+    152deg,
+    rgba(251, 252, 253, 0.72) 0%,
+    rgba(238, 241, 246, 0.62) 100%
+  );
+  -webkit-backdrop-filter: blur(22px) saturate(135%);
+  backdrop-filter: blur(22px) saturate(135%);
+}
+
+/* حالت جایگزین بدون افت فریم روی SwiftShader */
+.city-frosted-fallback {
+  background: linear-gradient(
+    152deg,
+    rgba(250, 251, 252, 0.88) 0%,
+    rgba(236, 239, 244, 0.84) 100%
+  );
+}
+
+.city-frosted-card,
+.city-taskbar {
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 16px 36px -10px rgba(15, 23, 42, 0.22);
+}
+
+.city-window-titlebar {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.56) 0%,
+    rgba(241, 245, 249, 0.34) 100%
+  );
+}
+
+/* کپسول‌های شیشه‌ای هدر بالای نقشه */
+.city-glass-pill {
+  background: linear-gradient(
+    165deg,
+    rgba(255, 255, 255, 0.9) 0%,
+    rgba(241, 243, 245, 0.86) 100%
+  );
+  border: 1px solid rgba(45, 45, 45, 0.18);
+  border-radius: 9999px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 6px 18px -6px rgba(15, 23, 42, 0.16);
+  color: var(--city-ink);
+  transition: transform 180ms cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.city-glass-pill:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    0 10px 22px -6px rgba(15, 23, 42, 0.22);
+}
+
+/* دکمه آبی فعال */
+.city-blue-pill {
+  background: linear-gradient(180deg, #6eb7f8 0%, #3b82f6 54%, #2563eb 100%);
+  border: 1px solid rgba(191, 219, 254, 0.85);
+  border-radius: 9999px;
+  color: #ffffff;
+  box-shadow:
+    inset 0 1.5px 2px rgba(255, 255, 255, 0.78),
+    inset 0 -2px 4px rgba(29, 78, 216, 0.42),
+    0 8px 20px -4px rgba(59, 130, 246, 0.5);
+  transition: transform 180ms cubic-bezier(0.16, 1, 0.3, 1),
+    filter 180ms ease;
+}
+.city-blue-pill:hover {
+  filter: brightness(1.04);
+}
+
+/* ── برچسب‌های اسکیس برداری روی ساختمان‌های نقشه ── */
+.city-pin-badge {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px 5px 9px;
+  border-radius: 9999px;
+  background: rgba(252, 251, 248, 0.94);
+  border: 1.2px solid rgba(40, 40, 40, 0.32);
+  box-shadow: 2px 3px 0 rgba(40, 40, 40, 0.12),
+    0 6px 14px -4px rgba(15, 23, 42, 0.16);
+  color: #1f2937;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: opacity 220ms ease, filter 220ms ease, background 160ms ease,
+    color 160ms ease;
+}
+
+.city-pin-badge:hover,
+.city-pin-badge.city-pin-active {
+  background: linear-gradient(180deg, #6cb6f8 0%, #3b82f6 55%, #2563eb 100%);
+  border-color: rgba(191, 219, 254, 0.92);
+  color: #ffffff;
+  box-shadow:
+    inset 0 1px 1.5px rgba(255, 255, 255, 0.78),
+    0 8px 22px -3px rgba(59, 130, 246, 0.52);
+  z-index: 25;
+}
+
+.city-pin-badge.city-pin-dimmed {
+  opacity: 0.28 !important;
+  filter: saturate(0.35);
+}
+
+.city-pin-icon {
+  display: grid;
+  place-items: center;
+  width: 19px;
+  height: 19px;
+  border-radius: 9999px;
+  background: rgba(215, 194, 163, 0.42);
+  color: #334155;
+}
+
+.city-pin-badge:hover .city-pin-icon,
+.city-pin-badge.city-pin-active .city-pin-icon {
+  background: rgba(255, 255, 255, 0.24);
+  color: #ffffff;
+}
+
+.city-pin-count {
+  padding: 2px 6px;
+  border-radius: 9999px;
+  background: rgba(30, 41, 59, 0.09);
+  color: #334155;
+  font-size: 10px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.city-pin-badge:hover .city-pin-count,
+.city-pin-badge.city-pin-active .city-pin-count {
+  background: rgba(255, 255, 255, 0.24);
+  color: #ffffff;
+}
+
+/* ── استایل کارت‌ها و جداول شیشه‌ای مات درون پنجره پاپ‌آپ ── */
+.dashboard-city-theme .city-interior-stage {
+  transform-style: preserve-3d;
+  transition: transform 360ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.dashboard-city-theme .city-interior-stage.city-iso-tilted .ds-stat,
+.dashboard-city-theme .city-interior-stage.city-iso-tilted .ds-quick {
+  transform: perspective(1000px) rotateX(6deg) rotateY(-3.5deg);
+  transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.dashboard-city-theme .city-interior-stage.city-iso-tilted .ds-stat:hover,
+.dashboard-city-theme .city-interior-stage.city-iso-tilted .ds-quick:hover {
+  transform: perspective(1000px) rotateX(0deg) rotateY(0deg) translateY(-3px);
+}
+
+.dashboard-city-theme .city-interior-stage.city-iso-tilted .overflow-x-auto,
+.dashboard-city-theme .city-interior-stage.city-iso-tilted fieldset {
+  transform: perspective(1700px) rotateX(3.6deg) rotateY(-2deg);
+  transform-origin: center top;
+  transition: transform 260ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.dashboard-city-theme .city-interior-stage.city-iso-tilted .overflow-x-auto:hover,
+.dashboard-city-theme .city-interior-stage.city-iso-tilted .overflow-x-auto:focus-within,
+.dashboard-city-theme .city-interior-stage.city-iso-tilted fieldset:focus-within {
+  transform: perspective(1700px) rotateX(0deg) rotateY(0deg);
+}
+
+/* کارت‌ها و جداول شیشه‌ای مات داخل پنجره */
+.dashboard-city-theme :where(main) .rounded-lg.border.border-border.bg-card,
+.dashboard-city-theme :where(main) .overflow-hidden.rounded-lg.border.border-border,
+.dashboard-city-theme :where(main) fieldset {
+  background: rgba(255, 255, 255, 0.56) !important;
+  border: 1px solid rgba(255, 255, 255, 0.78) !important;
+  border-radius: 16px !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 10px 24px -8px rgba(15, 23, 42, 0.12) !important;
+}
+
+.dashboard-city-theme :where(main) table thead tr {
+  background: rgba(241, 245, 249, 0.72) !important;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.28) !important;
+}
+.dashboard-city-theme :where(main) table th {
+  color: #334155 !important;
+  font-weight: 700 !important;
+  unicode-bidi: isolate;
+}
+.dashboard-city-theme :where(main) table td {
+  unicode-bidi: isolate;
+}
+.dashboard-city-theme :where(main) table tbody tr {
+  transition: background 150ms ease;
+}
+.dashboard-city-theme :where(main) table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.55) !important;
+}
+
+.dashboard-city-theme :where(main) .tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+.dashboard-city-theme :where(main) button[class*="bg-primary"],
+.dashboard-city-theme :where(main) a[class*="bg-primary"],
+.dashboard-city-theme :where(main) a.bg-foreground.text-background,
+.dashboard-city-theme :where(main) button.bg-foreground.text-background {
+  background: linear-gradient(180deg, #6eb7f8 0%, #3b82f6 54%, #2563eb 100%) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(191, 219, 254, 0.85) !important;
+  border-radius: 9999px !important;
+  box-shadow:
+    inset 0 1.5px 2px rgba(255, 255, 255, 0.76),
+    0 10px 24px -4px rgba(59, 130, 246, 0.45) !important;
+}
+
+.dashboard-city-theme :where(main) input:not([type="checkbox"]):not([type="radio"]):not([type="color"]),
+.dashboard-city-theme :where(main) textarea,
+.dashboard-city-theme :where(main) select {
+  background: rgba(255, 255, 255, 0.72) !important;
+  border: 1px solid rgba(148, 163, 184, 0.42) !important;
+  border-radius: 12px !important;
+  color: #1e293b !important;
+}
+.dashboard-city-theme :where(main) input:focus,
+.dashboard-city-theme :where(main) textarea:focus,
+.dashboard-city-theme :where(main) select:focus {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2) !important;
+  outline: none !important;
+}
+
+/* اسکرول‌بار */
+.dashboard-city-theme ::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.dashboard-city-theme ::-webkit-scrollbar-track {
+  background: transparent;
+}
+.dashboard-city-theme ::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.38);
+  border-radius: 9999px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-city-theme .city-interior-stage.city-iso-tilted .ds-stat,
+  .dashboard-city-theme .city-interior-stage.city-iso-tilted .ds-quick,
+  .dashboard-city-theme .city-interior-stage.city-iso-tilted .overflow-x-auto,
+  .dashboard-city-theme .city-interior-stage.city-iso-tilted fieldset {
+    transform: none !important;
+  }
+}

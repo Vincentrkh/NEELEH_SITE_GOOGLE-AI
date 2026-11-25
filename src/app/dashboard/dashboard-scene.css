@@ -1,0 +1,850 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   DASHBOARD SCENE — تم ادمین ظریف، جمع‌وجور، خاکستری
+   ───────────────────────────────────────────────────────────────────────────
+   اصول:
+     • خالص خاکستری (grayscale) — بدون رنگ
+     • فونت Inter — geometric sans-serif تمیز
+     • کارت‌های سفید با شعاع ۱۲px و سایه نرم
+     • فاصله‌گذاری فشرده (compact) — padding کم، تایپوگرافی منظم
+     • پشتیبانی از دو حالت لایت (پیش‌فرض) و دارک
+     • دوزبانه EN/FA با direction از <html dir>
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── فونت Inter ── */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+/* ═══ ۱. توکن‌ها ═════════════════════════════════════════════════════════ */
+
+.dashboard-scene {
+  /* پالت خاکستری — لایت (پیش‌فرض) */
+  --ds-bg: #f4f4f5;
+  --ds-card: #ffffff;
+  --ds-ink: #18181b;
+  --ds-ink-soft: #3f3f46;
+  --ds-muted: #71717a;
+  --ds-muted-light: #a1a1aa;
+  --ds-line: #e4e4e7;
+  --ds-line-soft: #f0f0f2;
+  --ds-overlay: rgba(0, 0, 0, 0.03);
+
+  /* Accent — خاکستری تیره */
+  --ds-accent: #18181b;
+  --ds-accent-hover: #27272a;
+  --ds-accent-soft: rgba(24, 24, 27, 0.06);
+  --ds-accent-text: #ffffff;
+
+  /* سایه‌ها — نرم و ظریف */
+  --ds-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --ds-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --ds-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.06);
+  --ds-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.08);
+
+  /* شعاع گوشه‌ها */
+  --ds-r-sm: 6px;
+  --ds-r-md: 8px;
+  --ds-r-lg: 12px;
+  --ds-r-xl: 16px;
+
+  /* فونت */
+  --ds-sans: "Inter", "Estedad Var", "Vazirmatn Var", -apple-system,
+    BlinkMacSystemFont, sans-serif;
+
+  /* منحنی */
+  --ds-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --ds-ease-out: cubic-bezier(0.33, 1, 0.68, 1);
+
+  /* shadcn tokens */
+  --background: var(--ds-bg);
+  --foreground: var(--ds-ink);
+  --card: var(--ds-card);
+  --card-foreground: var(--ds-ink);
+  --popover: var(--ds-card);
+  --popover-foreground: var(--ds-ink);
+  --primary: var(--ds-accent);
+  --primary-foreground: var(--ds-accent-text);
+  --secondary: var(--ds-line-soft);
+  --secondary-foreground: var(--ds-ink);
+  --muted: var(--ds-line-soft);
+  --muted-foreground: var(--ds-muted);
+  --accent: var(--ds-accent-soft);
+  --accent-foreground: var(--ds-ink);
+  --destructive: #71717a;
+  --border: var(--ds-line);
+  --input: var(--ds-line);
+  --ring: var(--ds-ink);
+  --radius: 8px;
+
+  /* ساید‌بار */
+  --sidebar: var(--ds-ink);
+  --sidebar-foreground: rgba(255, 255, 255, 0.8);
+  --sidebar-primary: var(--ds-accent);
+  --sidebar-primary-foreground: var(--ds-accent-text);
+  --sidebar-accent: rgba(255, 255, 255, 0.06);
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-ring: rgba(255, 255, 255, 0.4);
+
+  font-family: var(--ds-sans);
+  letter-spacing: -0.011em;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* ═══ ۱.۵ حالت دارک ═════════════════════════════════════════════════════ */
+
+.dashboard-scene.dark-scene {
+  --ds-bg: #09090b;
+  --ds-card: #18181b;
+  --ds-ink: #fafafa;
+  --ds-ink-soft: #d4d4d8;
+  --ds-muted: #71717a;
+  --ds-muted-light: #52525b;
+  --ds-line: #27272a;
+  --ds-line-soft: #1f1f23;
+  --ds-overlay: rgba(255, 255, 255, 0.02);
+
+  --ds-accent: #fafafa;
+  --ds-accent-hover: #ffffff;
+  --ds-accent-soft: rgba(255, 255, 255, 0.08);
+  --ds-accent-text: #09090b;
+
+  --ds-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --ds-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --ds-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --ds-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+
+  --background: var(--ds-bg);
+  --foreground: var(--ds-ink);
+  --card: var(--ds-card);
+  --card-foreground: var(--ds-ink);
+  --popover: var(--ds-card);
+  --popover-foreground: var(--ds-ink);
+  --primary: var(--ds-accent);
+  --primary-foreground: var(--ds-accent-text);
+  --secondary: var(--ds-line-soft);
+  --secondary-foreground: var(--ds-ink);
+  --muted: var(--ds-line-soft);
+  --muted-foreground: var(--ds-muted);
+  --accent: var(--ds-accent-soft);
+  --accent-foreground: var(--ds-ink);
+  --destructive: #a1a1aa;
+  --border: var(--ds-line);
+  --input: var(--ds-line);
+  --ring: var(--ds-accent);
+
+  --sidebar: var(--ds-ink);
+  --sidebar-foreground: rgba(255, 255, 255, 0.8);
+  --sidebar-accent: rgba(255, 255, 255, 0.08);
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgba(255, 255, 255, 0.06);
+}
+
+.dark .dashboard-scene:not(.dark-scene) {
+  --background: var(--ds-bg);
+  --foreground: var(--ds-ink);
+}
+
+/* ═══ ۲. پس‌زمینه ═══════════════════════════════════════════════════════ */
+
+.dashboard-scene {
+  background-color: var(--ds-bg);
+  background-image: none;
+}
+
+/* ═══ ۳. ساید‌بار ════════════════════════════════════════════════════════ */
+
+.dashboard-scene :where(aside) {
+  background: var(--ds-ink) !important;
+  color: rgba(255, 255, 255, 0.8) !important;
+  border-color: rgba(255, 255, 255, 0.06) !important;
+  box-shadow: none !important;
+}
+
+.dashboard-scene :where(aside)::after {
+  display: none;
+}
+
+/* برند «ن» / «N» */
+.dashboard-scene span.bg-foreground.text-background {
+  background: var(--ds-card) !important;
+  color: var(--ds-ink) !important;
+  border-radius: var(--ds-r-sm) !important;
+  border: none !important;
+  font-family: var(--ds-sans) !important;
+  font-weight: 700 !important;
+  transform: none;
+  box-shadow: none !important;
+  font-size: 13px !important;
+}
+
+.dashboard-scene :where(aside) :where(a[href^="/dashboard"]) > div > div:first-child {
+  color: #ffffff !important;
+  font-family: var(--ds-sans) !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.01em !important;
+  line-height: 1.2 !important;
+}
+.dashboard-scene :where(aside) :where(a[href^="/dashboard"]) > div > div:last-child {
+  color: rgba(255, 255, 255, 0.4) !important;
+  font-family: var(--ds-sans) !important;
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+}
+
+/* خطوط جداکننده ساید‌بار */
+.dashboard-scene :where(aside) :where(.border-b, .border-t) {
+  border-color: rgba(255, 255, 255, 0.06) !important;
+  border-style: solid !important;
+}
+
+/* کارت کاربر */
+.dashboard-scene :where(aside) :where(.border-b) .grid.size-9 {
+  background: rgba(255, 255, 255, 0.1) !important;
+  color: #ffffff !important;
+  border-radius: 50% !important;
+  border: none !important;
+  font-family: var(--ds-sans) !important;
+  font-weight: 600 !important;
+  transform: none;
+  font-size: 13px !important;
+}
+.dashboard-scene :where(aside) :where(.border-b) .text-sm.font-medium {
+  color: #ffffff !important;
+  font-family: var(--ds-sans) !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.01em !important;
+}
+.dashboard-scene :where(aside) :where(.border-b) .text-xs.text-muted-foreground {
+  color: rgba(255, 255, 255, 0.5) !important;
+  font-family: var(--ds-sans) !important;
+  font-size: 12px !important;
+  font-weight: 400 !important;
+}
+
+/* بَج نقش‌ها */
+.dashboard-scene :where(aside) :where(span[class*="border"]) {
+  border: none !important;
+  border-radius: var(--ds-r-sm) !important;
+  color: rgba(255, 255, 255, 0.6) !important;
+  font-family: var(--ds-sans) !important;
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.04em !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  padding: 2px 6px !important;
+}
+
+/* گروه‌بندی nav */
+.dashboard-scene :where(aside) nav .px-5.mb-2 {
+  color: rgba(255, 255, 255, 0.3) !important;
+  font-family: var(--ds-sans) !important;
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  padding-bottom: 4px !important;
+}
+.dashboard-scene :where(aside) nav .px-5.mb-2::after {
+  display: none;
+}
+
+/* آیتم‌های nav */
+.dashboard-scene :where(aside) nav a {
+  color: rgba(255, 255, 255, 0.6) !important;
+  font-family: var(--ds-sans) !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  letter-spacing: -0.01em !important;
+  border-radius: var(--ds-r-md) !important;
+  transition: color 150ms var(--ds-ease-out), background 150ms var(--ds-ease-out);
+  margin: 1px 8px !important;
+  padding: 8px 10px !important;
+  min-height: 36px !important;
+}
+
+/* آیتم فعال */
+.dashboard-scene :where(aside) nav a[class*="bg-secondary"] {
+  background: rgba(255, 255, 255, 0.1) !important;
+  color: #ffffff !important;
+  font-weight: 600 !important;
+  border: none !important;
+  box-shadow: none !important;
+  transform: none;
+  border-radius: var(--ds-r-md) !important;
+}
+.dashboard-scene :where(aside) nav a[class*="bg-secondary"]::before {
+  display: none;
+}
+
+/* hover غیرفعال */
+.dashboard-scene :where(aside) nav a:not([class*="bg-secondary"]):hover {
+  color: #ffffff !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  transform: none;
+}
+
+/* نقطه فعال — مخفی */
+.dashboard-scene :where(aside) nav a span.rounded-full.bg-foreground {
+  display: none !important;
+}
+
+/* فوتر ساید‌بار */
+.dashboard-scene :where(aside) .border-t a,
+.dashboard-scene :where(aside) .border-t button {
+  color: rgba(255, 255, 255, 0.5) !important;
+  font-family: var(--ds-sans) !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  border-radius: var(--ds-r-md) !important;
+}
+.dashboard-scene :where(aside) .border-t a:hover,
+.dashboard-scene :where(aside) .border-t button:hover {
+  color: #ffffff !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+}
+
+/* موبایل: نوار بالا */
+.dashboard-scene .lg\:hidden.sticky.top-0 {
+  background: var(--ds-ink) !important;
+  border-color: rgba(255, 255, 255, 0.06) !important;
+  color: #ffffff !important;
+}
+
+/* ═══ ۴. تایپوگرافی محتوا ════════════════════════════════════════════════ */
+
+/* Eyebrow‌ها */
+.dashboard-scene :where(main) p.text-\[10px\].uppercase.tracking-\[0\.18em\],
+.dashboard-scene :where(main) p.text-\[10px\].uppercase.tracking-\[0\.14em\] {
+  font-family: var(--ds-sans) !important;
+  font-weight: 600 !important;
+  font-size: 11px !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  color: var(--ds-muted) !important;
+  display: inline-block;
+}
+.dashboard-scene :where(main) p.text-\[10px\].uppercase.tracking-\[0\.18em\]::after,
+.dashboard-scene :where(main) p.text-\[10px\].uppercase.tracking-\[0\.14em\]::after {
+  display: none;
+}
+
+/* h1 */
+.dashboard-scene :where(main) h1 {
+  font-family: var(--ds-sans) !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.025em !important;
+  line-height: 1.2 !important;
+  font-size: clamp(1.5rem, 2.8vw, 2rem) !important;
+  color: var(--ds-ink) !important;
+}
+.dashboard-scene :where(main) h1::after {
+  display: none;
+}
+
+/* h2 */
+.dashboard-scene :where(main) h2 {
+  font-family: var(--ds-sans) !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.015em !important;
+  color: var(--ds-ink) !important;
+  font-size: 15px !important;
+}
+
+/* section heading */
+.dashboard-scene :where(main) p.text-sm.font-medium.uppercase.tracking-\[0\.14em\],
+.dashboard-scene :where(main) h2.text-sm.font-medium.uppercase.tracking-\[0\.14em\] {
+  font-family: var(--ds-sans) !important;
+  font-weight: 600 !important;
+  font-size: 13px !important;
+  letter-spacing: -0.01em !important;
+  text-transform: none !important;
+  color: var(--ds-ink) !important;
+}
+.dashboard-scene :where(main) p.text-sm.font-medium.uppercase.tracking-\[0\.14em\]::after,
+.dashboard-scene :where(main) h2.text-sm.font-medium.uppercase.tracking-\[0\.14em\]::after {
+  display: none;
+}
+
+/* اعداد آمار — فقط روی text-2xl/text-3xl */
+.dashboard-scene :where(main) .text-2xl.tabular-nums,
+.dashboard-scene :where(main) .text-3xl.tabular-nums {
+  font-variant-numeric: tabular-nums;
+  font-family: var(--ds-sans) !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.03em !important;
+  color: var(--ds-ink) !important;
+  font-size: 24px !important;
+  line-height: 1.1 !important;
+}
+.dashboard-scene :where(main) .tabular-nums:not(.text-2xl):not(.text-3xl) {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ═══ ۵. کارت‌ها ═══════════════════════════════════════════════════════ */
+
+.dashboard-scene :where(main) .rounded-lg.border.border-border.bg-card {
+  background: var(--ds-card) !important;
+  border: 1px solid var(--ds-line) !important;
+  border-radius: var(--ds-r-lg) !important;
+  box-shadow: var(--ds-shadow) !important;
+  transition: box-shadow 200ms var(--ds-ease-out);
+}
+.dashboard-scene :where(main) .rounded-lg.border.border-border.bg-card:hover {
+  box-shadow: var(--ds-shadow-md) !important;
+}
+
+.dashboard-scene :where(main) a.rounded-lg.border.border-border.bg-card {
+  background: var(--ds-card) !important;
+  border: 1px solid var(--ds-line) !important;
+  border-radius: var(--ds-r-lg) !important;
+  box-shadow: var(--ds-shadow) !important;
+  transition: box-shadow 200ms var(--ds-ease-out);
+}
+.dashboard-scene :where(main) a.rounded-lg.border.border-border.bg-card:hover {
+  box-shadow: var(--ds-shadow-md) !important;
+}
+
+/* آیکن‌های کارت‌ها */
+.dashboard-scene :where(main) .group svg {
+  color: var(--ds-muted) !important;
+  transition: color 150ms var(--ds-ease-out);
+  stroke-width: 1.75;
+}
+.dashboard-scene :where(main) .group:hover svg {
+  color: var(--ds-ink) !important;
+}
+.dashboard-scene :where(main) .group svg[class*="text-emerald"],
+.dashboard-scene :where(main) .group svg[class*="text-amber"],
+.dashboard-scene :where(main) .group svg[class*="text-foreground"] {
+  color: var(--ds-muted) !important;
+}
+
+/* متن muted */
+.dashboard-scene :where(main) .text-xs.text-muted-foreground,
+.dashboard-scene :where(main) .text-\[10px\].text-muted-foreground {
+  color: var(--ds-muted) !important;
+  font-family: var(--ds-sans) !important;
+  font-weight: 400 !important;
+}
+.dashboard-scene :where(main) .text-xs.text-muted-foreground {
+  font-size: 12px !important;
+}
+.dashboard-scene :where(main) .text-xs {
+  color: var(--ds-ink-soft) !important;
+  font-family: var(--ds-sans) !important;
+  font-weight: 400 !important;
+  font-size: 12px !important;
+}
+
+/* ═══ ۶. دکمه‌ها و فرم‌ها ═════════════════════════════════════════════════ */
+
+/* دکمه primary */
+.dashboard-scene :where(main) button[class*="bg-primary"],
+.dashboard-scene :where(main) a[class*="bg-primary"] {
+  background: var(--ds-accent) !important;
+  color: var(--ds-accent-text) !important;
+  border: none !important;
+  border-radius: var(--ds-r-md) !important;
+  font-family: var(--ds-sans) !important;
+  font-weight: 500 !important;
+  font-size: 13px !important;
+  letter-spacing: -0.01em !important;
+  box-shadow: var(--ds-shadow-sm) !important;
+  padding: 8px 16px !important;
+  min-height: 36px !important;
+  transform: none;
+  transition: background 150ms var(--ds-ease-out),
+    box-shadow 150ms var(--ds-ease-out);
+}
+.dashboard-scene :where(main) button[class*="bg-primary"]:hover,
+.dashboard-scene :where(main) a[class*="bg-primary"]:hover {
+  background: var(--ds-accent-hover) !important;
+  box-shadow: var(--ds-shadow) !important;
+}
+.dashboard-scene :where(main) button[class*="bg-primary"]:active,
+.dashboard-scene :where(main) a[class*="bg-primary"]:active {
+  box-shadow: var(--ds-shadow-sm) !important;
+}
+
+/* Inputs — تمیز و جمع‌وجور */
+.dashboard-scene :where(main) input,
+.dashboard-scene :where(main) textarea,
+.dashboard-scene :where(main) select {
+  border-radius: var(--ds-r-md) !important;
+  border: 1px solid var(--ds-line) !important;
+  font-family: var(--ds-sans) !important;
+  background-color: var(--ds-card) !important;
+  color: var(--ds-ink) !important;
+  font-weight: 400 !important;
+  font-size: 13px !important;
+  letter-spacing: -0.01em !important;
+  min-height: 36px !important;
+  transition: border-color 150ms var(--ds-ease-out),
+    box-shadow 150ms var(--ds-ease-out);
+}
+/* فاصله داخلی — فقط وقتی utility padding ندارند (inputهای جستجو با آیکون ps-10 را بازنویسی نکند) */
+.dashboard-scene :where(main) input:not([class*="ps-"]):not([class*="pl-"]):not([class*="px-"]):not([class*="p-"]):not([type="color"]):not([type="checkbox"]):not([type="radio"]),
+.dashboard-scene :where(main) select:not([class*="px-"]):not([class*="ps-"]):not([class*="pl-"]),
+.dashboard-scene :where(main) textarea:not([class*="p-"]):not([class*="px-"]):not([class*="ps-"]) {
+  padding: 8px 12px !important;
+}
+.dashboard-scene :where(main) textarea {
+  min-height: 80px !important;
+  line-height: 1.5 !important;
+}
+.dashboard-scene :where(main) input:focus,
+.dashboard-scene :where(main) textarea:focus,
+.dashboard-scene :where(main) select:focus {
+  border-color: var(--ds-ink) !important;
+  box-shadow: 0 0 0 2px var(--ds-accent-soft) !important;
+  outline: none !important;
+}
+
+/* ═══ ۷. جدول‌ها ════════════════════════════════════════════════════════ */
+
+.dashboard-scene :where(main) .divide-y > * + * {
+  border-color: var(--ds-line) !important;
+  border-style: solid !important;
+  border-width: 1px 0 0 0 !important;
+}
+.dashboard-scene :where(main) .border-b.border-border {
+  border-color: var(--ds-line) !important;
+  border-style: solid !important;
+  border-width: 0 0 1px 0 !important;
+}
+
+/* آیتم‌های لیست */
+.dashboard-scene :where(main) .divide-y li {
+  padding-block: 12px !important;
+  transition: background 150ms var(--ds-ease-out);
+}
+.dashboard-scene :where(main) .divide-y li:hover {
+  background: var(--ds-overlay) !important;
+}
+
+/* avatars در لیست */
+.dashboard-scene :where(main) .divide-y li .grid.size-8 {
+  background: var(--ds-line-soft) !important;
+  color: var(--ds-ink-soft) !important;
+  border-radius: 50% !important;
+  border: none !important;
+  font-family: var(--ds-sans) !important;
+  font-weight: 600 !important;
+  transform: none;
+  font-size: 12px !important;
+}
+.dashboard-scene :where(main) .divide-y li .grid[class*="bg-amber-100"] {
+  background: var(--ds-line-soft) !important;
+  color: var(--ds-ink-soft) !important;
+}
+
+/* ═══ ۸. اسکرول‌بار ══════════════════════════════════════════════════════ */
+
+.dashboard-scene ::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.dashboard-scene ::-webkit-scrollbar-track {
+  background: transparent;
+}
+.dashboard-scene ::-webkit-scrollbar-thumb {
+  background: var(--ds-muted-light);
+  border-radius: 9999px;
+  border: none;
+}
+.dashboard-scene ::-webkit-scrollbar-thumb:hover {
+  background: var(--ds-muted);
+}
+.dashboard-scene {
+  scrollbar-width: thin;
+  scrollbar-color: var(--ds-muted-light) transparent;
+}
+
+/* ═══ ۹. انتخاب متن ═════════════════════════════════════════════════════ */
+
+.dashboard-scene ::selection {
+  background: var(--ds-accent-soft);
+  color: var(--ds-ink);
+}
+.dashboard-scene ::-moz-selection {
+  background: var(--ds-accent-soft);
+  color: var(--ds-ink);
+}
+
+/* ═══ ۱۰. focus ring ═════════════════════════════════════════════════════ */
+
+.dashboard-scene :focus-visible {
+  outline: 2px solid var(--ds-ink);
+  outline-offset: 1px;
+}
+
+/* ═══ ۱۱. Reduced motion ═════════════════════════════════════════════════ */
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-scene *,
+  .dashboard-scene *::before,
+  .dashboard-scene *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    transform: none !important;
+  }
+}
+
+/* ═══ ۱۲. موبایل ═══════════════════════════════════════════════════════ */
+
+@media (max-width: 640px) {
+  .dashboard-scene :where(main) h1 {
+    font-size: 1.5rem !important;
+  }
+  .dashboard-scene :where(main) .text-2xl.tabular-nums,
+  .dashboard-scene :where(main) .text-3xl.tabular-nums {
+    font-size: 20px !important;
+  }
+}
+
+/* ═══ ۱۳. Status badges — pill خاکستری ══════════════════════════════════ */
+
+.dashboard-scene :where(main) [class*="text-emerald"],
+.dashboard-scene :where(main) [class*="text-amber"] {
+  color: var(--ds-ink-soft) !important;
+}
+
+.dashboard-scene :where(main) [class*="bg-amber-100"],
+.dashboard-scene :where(main) [class*="bg-amber-50"] {
+  background: var(--ds-line-soft) !important;
+  color: var(--ds-ink-soft) !important;
+  border: none !important;
+  border-radius: var(--ds-r-sm) !important;
+  font-family: var(--ds-sans) !important;
+  font-weight: 500 !important;
+  font-size: 11px !important;
+  padding: 3px 8px !important;
+  letter-spacing: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+}
+.dashboard-scene :where(main) [class*="bg-emerald-100"],
+.dashboard-scene :where(main) [class*="bg-emerald-50"] {
+  background: var(--ds-line-soft) !important;
+  color: var(--ds-ink-soft) !important;
+  border: none !important;
+  border-radius: var(--ds-r-sm) !important;
+  font-family: var(--ds-sans) !important;
+  font-weight: 500 !important;
+  font-size: 11px !important;
+  padding: 3px 8px !important;
+  letter-spacing: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+}
+
+.dashboard-scene :where(main) [class*="bg-amber-100"].rounded-full,
+.dashboard-scene :where(main) [class*="bg-secondary"].rounded-full {
+  background: var(--ds-line-soft) !important;
+  color: var(--ds-ink-soft) !important;
+  border: none !important;
+  border-radius: var(--ds-r-sm) !important;
+  font-family: var(--ds-sans) !important;
+  font-weight: 500 !important;
+  padding: 3px 8px !important;
+}
+
+.dashboard-scene :where(main) [class*="text-red"],
+.dashboard-scene :where(main) [class*="destructive"] {
+  color: var(--ds-ink-soft) !important;
+}
+
+/* ═══ ۱۴. لینک‌های «همه ↗» ═════════════════════════════════════════════ */
+
+.dashboard-scene :where(main) a[href*="/dashboard/"] .text-muted-foreground,
+.dashboard-scene :where(main) a[href*="/dashboard/"].text-muted-foreground {
+  color: var(--ds-ink-soft) !important;
+  font-weight: 500 !important;
+  font-size: 12px !important;
+}
+
+/* ═══ ۱۵. دکمه سوئیچ تم ════════════════════════════════════════════════ */
+
+.dashboard-theme-toggle {
+  position: fixed;
+  top: 12px;
+  inset-inline-end: 12px;
+  z-index: 100;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--ds-r-md);
+  border: 1px solid var(--ds-line);
+  background: var(--ds-card);
+  box-shadow: var(--ds-shadow-sm);
+  color: var(--ds-ink);
+  cursor: pointer;
+  transition: box-shadow 150ms var(--ds-ease-out);
+}
+.dashboard-theme-toggle:hover {
+  box-shadow: var(--ds-shadow);
+}
+.dashboard-theme-toggle svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 1.75;
+}
+.dashboard-theme-toggle .sun-icon {
+  display: none;
+}
+.dashboard-theme-toggle .moon-icon {
+  display: block;
+}
+.dashboard-scene.dark-scene .dashboard-theme-toggle .sun-icon {
+  display: block;
+}
+.dashboard-scene.dark-scene .dashboard-theme-toggle .moon-icon {
+  display: none;
+}
+
+@media (max-width: 1024px) {
+  .dashboard-theme-toggle {
+    top: auto;
+    bottom: 16px;
+    inset-inline-end: 16px;
+  }
+}
+
+/* ═══ ۱۶. متفرقه — فیلتر رنگ‌های باقی‌مانده ═════════════════════════════ */
+
+/* bg رنگی → خاکستری */
+.dashboard-scene :where(main) [class*="bg-emerald"],
+.dashboard-scene :where(main) [class*="bg-amber"],
+.dashboard-scene :where(main) [class*="bg-blue"],
+.dashboard-scene :where(main) [class*="bg-red"],
+.dashboard-scene :where(main) [class*="bg-green"],
+.dashboard-scene :where(main) [class*="bg-rose"],
+.dashboard-scene :where(main) [class*="bg-pink"],
+.dashboard-scene :where(main) [class*="bg-orange"],
+.dashboard-scene :where(main) [class*="bg-yellow"],
+.dashboard-scene :where(main) [class*="bg-purple"],
+.dashboard-scene :where(main) [class*="bg-indigo"],
+.dashboard-scene :where(main) [class*="bg-cyan"],
+.dashboard-scene :where(main) [class*="bg-teal"],
+.dashboard-scene :where(main) [class*="bg-sky"],
+.dashboard-scene :where(main) [class*="bg-violet"] {
+  background: var(--ds-line-soft) !important;
+  color: var(--ds-ink-soft) !important;
+  border: 1px solid var(--ds-line) !important;
+}
+
+/* text رنگی → خاکستری */
+.dashboard-scene :where(main) [class*="text-emerald"],
+.dashboard-scene :where(main) [class*="text-amber"],
+.dashboard-scene :where(main) [class*="text-blue"],
+.dashboard-scene :where(main) [class*="text-red"],
+.dashboard-scene :where(main) [class*="text-green"],
+.dashboard-scene :where(main) [class*="text-rose"],
+.dashboard-scene :where(main) [class*="text-pink"],
+.dashboard-scene :where(main) [class*="text-orange"],
+.dashboard-scene :where(main) [class*="text-yellow"],
+.dashboard-scene :where(main) [class*="text-purple"],
+.dashboard-scene :where(main) [class*="text-indigo"],
+.dashboard-scene :where(main) [class*="text-cyan"],
+.dashboard-scene :where(main) [class*="text-teal"],
+.dashboard-scene :where(main) [class*="text-sky"],
+.dashboard-scene :where(main) [class*="text-violet"] {
+  color: var(--ds-ink-soft) !important;
+}
+
+/* destructive */
+.dashboard-scene :where(main) [class*="destructive"] {
+  background: var(--ds-line-soft) !important;
+  color: var(--ds-ink-soft) !important;
+  border-color: var(--ds-line) !important;
+}
+
+/* inline-styled colors (پیش‌نمایش /theme) — متن رنگی → خاکستری،
+   بک‌گراند رنگی → خاکستری.
+   استثنا: span‌های کوچک color-swatch (در صفحه theme) رنگ واقعی‌شان
+   حفظ می‌شود تا کاربر بتونه رنگ انتخاب‌شده را ببینه. */
+.dashboard-scene :where(main) [style*="color"]:not([style*="background"]) {
+  color: var(--ds-ink-soft) !important;
+}
+/* بک‌گراند‌های inline — فقط روی button و div که preview نیستن */
+.dashboard-scene :where(main) button[style*="background-color"],
+.dashboard-scene :where(main) button[style*="backgroundColor"],
+.dashboard-scene :where(main) div[style*="background-color"]:not(.size-10):not(.size-8):not(.size-6),
+.dashboard-scene :where(main) div[style*="backgroundColor"]:not(.size-10):not(.size-8):not(.size-6) {
+  background-color: var(--ds-line-soft) !important;
+}
+
+/* svg colored strokes/fills */
+.dashboard-scene :where(main) svg [stroke]:not([stroke="none"]) {
+  stroke: currentColor !important;
+}
+
+/* ═══ ۱۷. مخفی کردن SkinSwitcher سایت داخل داشبورد ════════════════════ */
+
+/* سوییچر پوسته سایت (NEELEH / TRES MARES) داخل داشبورد مخفی می‌شود —
+   این CSS فقط در صفحات /dashboard/* لود می‌شود پس مستقیم target می‌کنیم. */
+.skin-switcher {
+  display: none !important;
+}
+
+/* ═══ ۱۷. bidi isolation — جلوگیری از بهم‌ریختگی RTL/LTR ═══════════════ */
+
+/* تمام td/th در جداول — isolate bidi برای جلوگیری از flow mixed */
+.dashboard-scene :where(main) td,
+.dashboard-scene :where(main) th {
+  unicode-bidi: isolate;
+}
+
+/* اعداد و قیمت‌ها — LTR برای اعداد لاتین */
+.dashboard-scene :where(main) .tabular-nums,
+.dashboard-scene :where(main) [dir="ltr"] {
+  unicode-bidi: isolate;
+}
+
+/* ═══ ۱۸. فیلدهای فرم — تراز یکنواخت ═══════════════════════════════════ */
+
+/* legend در fieldset — تمیز */
+.dashboard-scene :where(main) legend {
+  font-family: var(--ds-sans) !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  color: var(--ds-muted) !important;
+  padding-inline: 6px !important;
+}
+
+/* fieldset — بدون border اضافی */
+.dashboard-scene :where(main) fieldset {
+  border: 1px solid var(--ds-line) !important;
+  border-radius: var(--ds-r-lg) !important;
+  background: var(--ds-card) !important;
+  padding: 20px !important;
+}
+
+/* label ها */
+.dashboard-scene :where(main) label {
+  font-family: var(--ds-sans) !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  color: var(--ds-ink) !important;
+  letter-spacing: -0.01em !important;
+}
+
+/* ═══ ۱۹. compact spacing — جمع‌وجور کردن ═════════════════════════════ */
+
+/* کاهش padding عمومی کارت‌ها */
+.dashboard-scene :where(main) .rounded-lg.border.border-border.bg-card {
+  padding: 16px !important;
+}
+@media (min-width: 640px) {
+  .dashboard-scene :where(main) .rounded-lg.border.border-border.bg-card {
+    padding: 20px !important;
+  }
+}

@@ -1,0 +1,546 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-sans-display), "Vazirmatn Var", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-mono-tech), ui-monospace, monospace;
+  --font-serif-display: var(--font-serif-display), Georgia, serif;
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+:root {
+  --radius: 0.625rem;
+  /* Light — pure white bg / pure black text (matches bleibtgleich.dev) */
+  --background: oklch(1 0 0);
+  --foreground: oklch(0 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0 0 0);
+  --primary: oklch(0 0 0);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.95 0 0);
+  --secondary-foreground: oklch(0 0 0);
+  --muted: oklch(0.95 0 0);
+  --muted-foreground: oklch(0.45 0 0);
+  --accent: oklch(0.95 0 0);
+  --accent-foreground: oklch(0 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.9 0 0);
+  --input: oklch(0.9 0 0);
+  --ring: oklch(0.4 0 0);
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+  --sidebar: oklch(1 0 0);
+  --sidebar-foreground: oklch(0 0 0);
+  --sidebar-primary: oklch(0 0 0);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.95 0 0);
+  --sidebar-accent-foreground: oklch(0 0 0);
+  --sidebar-border: oklch(0.9 0 0);
+  --sidebar-ring: oklch(0.4 0 0);
+}
+
+.dark {
+  /* Dark — near black with a touch of warmth */
+  --background: oklch(0.12 0.003 90);
+  --foreground: oklch(0.96 0 0);
+  --card: oklch(0.12 0.003 90);
+  --card-foreground: oklch(0.96 0 0);
+  --popover: oklch(0.16 0.003 90);
+  --popover-foreground: oklch(0.96 0 0);
+  --primary: oklch(0.96 0 0);
+  --primary-foreground: oklch(0.12 0.003 90);
+  --secondary: oklch(0.18 0.003 90);
+  --secondary-foreground: oklch(0.96 0 0);
+  --muted: oklch(0.18 0.003 90);
+  --muted-foreground: oklch(0.55 0 0);
+  --accent: oklch(0.2 0.003 90);
+  --accent-foreground: oklch(0.96 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 12%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: oklch(0.12 0.003 90);
+  --sidebar-foreground: oklch(0.96 0 0);
+  --sidebar-primary: oklch(0.96 0 0);
+  --sidebar-primary-foreground: oklch(0.12 0.003 90);
+  --sidebar-accent: oklch(0.18 0.003 90);
+  --sidebar-accent-foreground: oklch(0.96 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    /* Root-level horizontal clip: body-level `clip` alone doesn't propagate
+       to the viewport in every engine, letting orbit tiles / marquees pan
+       the page a few px sideways on phones. `clip` creates no scrollport,
+       so position: sticky keeps working. */
+    overflow-x: clip;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "ss01", "cv01";
+    overscroll-behavior: none;
+    /* Clip horizontal bleed (orbit tiles fly past the viewport edges on
+       narrow screens). `clip` — unlike `hidden` — creates no scrollport,
+       so position: sticky keeps working. */
+    overflow-x: clip;
+  }
+
+  /* Inverted selection — like the real site */
+  ::selection {
+    background: var(--foreground);
+    color: var(--background);
+  }
+  ::-moz-selection {
+    background: var(--foreground);
+    color: var(--background);
+  }
+
+  /* Hide scrollbar entirely (matches real site) */
+  ::-webkit-scrollbar {
+    display: none;
+  }
+  * {
+    scrollbar-width: none;
+  }
+
+  /* Hide native cursor on fine-pointer devices — we draw our own */
+  @media (pointer: fine) {
+    .has-custom-cursor,
+    .has-custom-cursor * {
+      cursor: none !important;
+    }
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+  .text-pretty {
+    text-wrap: pretty;
+  }
+  .font-serif-display {
+    font-family: var(--font-serif-display), Georgia, serif;
+  }
+
+  /* Mask-reveal container: clips child overflow so the
+     translateY(100%) → translateY(0%) looks like a wipe.
+     Vertical-only: overflow-x stays visible so a word wider than its
+     column (SplitText word spans are width:max-content) bleeds into the
+     grid gap instead of being chopped mid-glyph. visible+clip is a valid
+     overflow pair and creates no scrollport. */
+  .mask-reveal {
+    overflow-x: visible;
+    overflow-y: clip;
+    padding-block: 0.12em;
+    margin-block: -0.12em;
+  }
+  .mask-reveal > * {
+    display: block;
+    will-change: transform;
+  }
+
+  /* Link underline animation */
+  .link-underline {
+    background-image: linear-gradient(currentColor, currentColor);
+    background-size: 0% 1px;
+    background-position: 0 100%;
+    background-repeat: no-repeat;
+    transition: background-size 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .link-underline:hover {
+    background-size: 100% 1px;
+  }
+
+  /* Gooey filter applied to text on hover (liquid morph) */
+  .goo-text {
+    filter: url(#goo-liquid);
+  }
+
+  /* Hide cursor dot on touch devices */
+  @media (pointer: coarse) {
+    .cursor-dot,
+    .cursor-chat-input {
+      display: none !important;
+    }
+  }
+
+  /* contentEditable placeholder for cursor chat */
+  .cursor-chat-input:empty::before {
+    content: attr(data-placeholder);
+    opacity: 0.5;
+    pointer-events: none;
+  }
+}
+
+/* ===== Fluid trail brush slider (BrushSettings panel) ===== */
+.fluid-brush-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 96px;
+  height: 2px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.18);
+  outline: none;
+  cursor: pointer;
+}
+.fluid-brush-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: #000;
+  border: none;
+  cursor: grab;
+  transition: transform 0.15s ease;
+}
+.fluid-brush-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.25);
+}
+.fluid-brush-slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: #000;
+  border: none;
+  cursor: grab;
+}
+.fluid-brush-slider::-moz-range-track {
+  height: 2px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.18);
+}
+
+/* ===== Bilingual (fa) — Persian fonts & RTL typography ===== */
+
+/*
+ * Persian font stack, self-hosted in /public/fonts:
+ *   Vazirmatn (variable, wght 100-900) — body text
+ *   Estedad   (variable, wght axis)    — display/headings (arabic + latin subsets)
+ */
+@font-face {
+  font-family: "Vazirmatn Var";
+  src: url("/fonts/Vazirmatn%5Bwght%5D.woff2") format("woff2-variations");
+  font-weight: 100 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Estedad Var";
+  src: url("/fonts/estedad-arabic-wght-normal.woff2") format("woff2-variations");
+  font-weight: 100 900;
+  font-display: swap;
+  /* Arabic script ranges (Persian letters + Persian digits ۰-۹ + punctuations) */
+  unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891,
+    U+0897-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41,
+    U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC;
+}
+@font-face {
+  font-family: "Estedad Var";
+  src: url("/fonts/estedad-latin-wght-normal.woff2") format("woff2-variations");
+  font-weight: 100 900;
+  font-display: swap;
+  /* Latin — so embedded Latin words (UX/UI, v4.0, …) keep the same display face */
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6,
+    U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212,
+    U+2215, U+FEFF, U+FFFD;
+}
+
+/*
+ * Sultan K Medium — Persian display face for headings.
+ * Two static instances: Medium (500) and Bold (700).
+ * Family name table in the font itself is "Sultan K Medium".
+ */
+@font-face {
+  font-family: "Sultan K Medium";
+  src: url("/fonts/SultanK-Medium.woff2") format("woff2");
+  font-weight: 400 500;
+  font-style: normal;
+  font-display: swap;
+  /* Arabic script range — Latin glyphs fall back to the next family in stack */
+  unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891,
+    U+0897-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41,
+    U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC;
+}
+@font-face {
+  font-family: "Sultan K Medium";
+  src: url("/fonts/SultanK-Bold.woff2") format("woff2");
+  font-weight: 600 800;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891,
+    U+0897-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41,
+    U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC;
+}
+
+/* Persian locale: cohesive bilingual Estedad + Vazirmatn stack */
+html[dir="rtl"] body {
+  font-family: "Vazirmatn Var", var(--font-sans-display), ui-sans-serif, system-ui,
+    sans-serif;
+}
+html[dir="rtl"] h1,
+html[dir="rtl"] h2,
+html[dir="rtl"] h3,
+html[dir="rtl"] h4,
+html[dir="rtl"] h5,
+html[dir="rtl"] h6 {
+  font-family: "Sultan K Medium", "Estedad Var", "Vazirmatn Var", var(--font-sans-display),
+    sans-serif;
+}
+/* Persian display accents that replace the Latin serif (Fraunces has
+   no Persian glyphs). Applied via .fa-serif on elements whose CONTENT is
+   localized; static Latin serifs keep their face. */
+html[dir="rtl"] .fa-serif,
+html[dir="rtl"] :is(.text-2xl, .text-3xl, .text-4xl, .text-5xl, .text-6xl, .text-7xl, .hero-title, .display-heading):not(.font-mono) {
+  font-family: "Sultan K Medium", "Estedad Var", "Vazirmatn Var", sans-serif;
+  font-style: normal;
+}
+
+/* Persian letters are joined — any letter-spacing breaks the connections */
+html[dir="rtl"] * {
+  letter-spacing: normal !important;
+}
+
+@keyframes marquee {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.animate-marquee {
+  animation: marquee var(--duration, 55s) linear infinite;
+}
+html[dir="rtl"] .animate-marquee {
+  animation-direction: reverse;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-marquee {
+    animation: none;
+  }
+}
+
+/* ===== Fluid reveal — disabled fallback (no WebGL2) ===== */
+.fluid-disabled .fluid-reveal-content,
+.fluid-disabled .fluid-canvas {
+  display: none;
+}
+
+/* ===== Responsive menu overlay geometry =====
+   Desktop (≥1024px) keeps the exact reference geometry: three 240px blocks
+   in the end half of the viewport + a bottom archive block. Below that the
+   same staircase layout scales down: three columns spanning the full width. */
+.menu-blocks {
+  /* Mobile-first: 3 columns fill the viewport, heights fit short screens */
+  --menu-w: calc(100vw / 3);
+  --menu-h-1: min(360px, 55svh);
+  --menu-h-2: min(280px, 43svh);
+  --menu-h-3: min(216px, 33svh);
+  /* Continued staircase for CMS-managed extra blocks (index ≥ 4).
+     SiteHeader only uses these when the admin adds more items. */
+  --menu-h-4: min(176px, 27svh);
+  --menu-h-5: min(152px, 23svh);
+  --menu-h-6: min(136px, 20svh);
+  --menu-h-7: min(124px, 18svh);
+  --menu-h-8: min(116px, 16svh);
+  --menu-h-arch: 44px; /* ≥44px touch target */
+  /* Blocks start below the fixed top row (lang toggle + menu/close) so the
+     "3" indicator never collides with it on narrow screens. */
+  --menu-top: 56px;
+  /* Archive (Experiments) is position:fixed → viewport-relative x.
+     Mobile: sits in column index 1 of the full-width grid. */
+  --menu-archive-x: var(--menu-w);
+}
+@media (min-width: 1024px) {
+  .menu-blocks {
+    --menu-w: clamp(140px, 16.67vw, 240px);
+    --menu-h-1: 360px;
+    --menu-h-2: 280px;
+    --menu-h-3: 216px;
+    --menu-h-4: 176px;
+    --menu-h-5: 152px;
+    --menu-h-6: 136px;
+    --menu-h-7: 124px;
+    --menu-h-8: 116px;
+    --menu-h-arch: 39px;
+    --menu-top: 0px; /* desktop: blocks flush with the top edge, as the reference */
+    /* Desktop: container starts at 50vw → archive lands in column index 1 */
+    --menu-archive-x: calc(50vw + var(--menu-w));
+  }
+}
+
+/* Dynamic column width when the CMS-managed menu has N ≠ 3 blocks.
+   N=3 (no attribute) keeps the exact reference geometry above. */
+.menu-blocks[data-cols="1"] { --menu-w: 100vw; --cols-n: 1; }
+.menu-blocks[data-cols="2"] { --menu-w: calc(100vw / 2); --cols-n: 2; }
+.menu-blocks[data-cols="4"] { --menu-w: calc(100vw / 4); --cols-n: 4; }
+.menu-blocks[data-cols="5"] { --menu-w: calc(100vw / 5); --cols-n: 5; }
+.menu-blocks[data-cols="6"] { --menu-w: calc(100vw / 6); --cols-n: 6; }
+.menu-blocks[data-cols="7"] { --menu-w: calc(100vw / 7); --cols-n: 7; }
+.menu-blocks[data-cols="8"] { --menu-w: calc(100vw / 8); --cols-n: 8; }
+@media (min-width: 1024px) {
+  .menu-blocks[data-cols="1"] { --menu-w: clamp(180px, 50vw, 640px); }
+  .menu-blocks[data-cols="2"] { --menu-w: clamp(140px, calc(50vw / 2), 320px); }
+  .menu-blocks[data-cols="4"] { --menu-w: clamp(96px, calc(50vw / 4), 240px); }
+  .menu-blocks[data-cols="5"] { --menu-w: clamp(88px, calc(50vw / 5), 240px); }
+  .menu-blocks[data-cols="6"] { --menu-w: clamp(80px, calc(50vw / 6), 240px); }
+  .menu-blocks[data-cols="7"] { --menu-w: clamp(72px, calc(50vw / 7), 240px); }
+  .menu-blocks[data-cols="8"] { --menu-w: clamp(64px, calc(50vw / 8), 240px); }
+  /* وقتی ستون‌ها بیشتر از مرجع (3) شدند، عرض کمتر یعنی نشانگر ستون آخر
+     زیر دکمه‌های فارسی/Close می‌رود — بلوک‌ها زیر ردیف بالایی شروع می‌شوند
+     (همان رفتار موبایل). مرجع N=3 با data-cols unset دست‌نخورده می‌ماند. */
+  .menu-blocks[data-cols] { --menu-top: 56px; }
+}
+/* With more columns, labels shrink proportionally so long labels still fit */
+.menu-blocks[data-cols] .menu-label {
+  font-size: clamp(0.9rem, calc(3.9vw * 3 / var(--cols-n, 4)), 1.5rem);
+}
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .menu-blocks[data-cols] .menu-label {
+    font-size: clamp(1.1rem, calc(2.2vw * 3 / var(--cols-n, 4)), 1.75rem);
+  }
+}
+@media (min-width: 1280px) {
+  .menu-blocks[data-cols] .menu-label {
+    font-size: clamp(1.1rem, calc(2.6vw * 3 / var(--cols-n, 4)), 2.5rem);
+  }
+}
+
+/* Menu block labels — scale down on narrow viewports so the longest label
+   ("Experiments") still fits a 100vw/3 block; desktop restores the
+   reference clamp. Mid sizes shrink proportionally to the block width. */
+.menu-label {
+  font-size: clamp(0.9rem, 3.9vw, 1.5rem);
+}
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .menu-label {
+    font-size: clamp(1.3rem, 2.2vw, 1.75rem);
+  }
+}
+@media (min-width: 1280px) {
+  .menu-label {
+    font-size: clamp(1.75rem, 2.6vw, 2.5rem);
+  }
+}
+
+/* Brush settings panel — hidden while the menu overlay is open so it never
+   shows through the translucent overlay or collides with the fixed
+   Experiments block (panel z-80 < overlay z-85). Toggled by SiteHeader via
+   body[data-menu-open]; the transition keeps the motion soft. */
+.brush-panel {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+body[data-menu-open="true"] .brush-panel {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(10px);
+}
+
+/* Touch hit-area expansion — keeps the compact visual size of small icon
+   buttons/dots but guarantees a ≥44px touch target on phones/tablets. */
+@media (max-width: 991px), (pointer: coarse) {
+  .touch-hit::before {
+    content: "";
+    position: absolute;
+    inset: -10px;
+  }
+}
+
+/* ===== Page Transition Animations ===== */
+.page-content {
+  animation: pageEnter 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes pageEnter {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+    filter: blur(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+/* ===== Staggered element entrance ===== */
+.page-content > * {
+  animation: elementEnter 0.6s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+.page-content > *:nth-child(1) { animation-delay: 0.05s; }
+.page-content > *:nth-child(2) { animation-delay: 0.1s; }
+.page-content > *:nth-child(3) { animation-delay: 0.15s; }
+.page-content > *:nth-child(4) { animation-delay: 0.2s; }
+.page-content > *:nth-child(5) { animation-delay: 0.25s; }
+
+@keyframes elementEnter {
+  0% {
+    opacity: 0;
+    transform: translateY(15px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-content,
+  .page-content > * {
+    animation: none !important;
+  }
+}

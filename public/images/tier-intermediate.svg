@@ -1,0 +1,115 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 200" width="480" height="200">
+
+<defs>
+  <linearGradient id="bg2" x1="0" y1="0" x2="1" y2="1">
+    <stop stop-color="#F2F0EB"/>
+    <stop offset="1" stop-color="#EAE7E0"/>
+  </linearGradient>
+  <clipPath id="pond2"><ellipse cx="330" cy="160" rx="45" ry="14"/></clipPath>
+  <filter id="blur2"><feGaussianBlur stdDeviation="3"/></filter>
+</defs>
+
+<rect width="480" height="200" fill="url(#bg2)"/>
+
+<!-- Distant context — hairline -->
+<g stroke="#B8B5AE" stroke-width="0.35" fill="none" opacity="0.18">
+  <line x1="0" y1="50" x2="90" y2="50"/>
+  <line x1="390" y1="45" x2="480" y2="45"/>
+  <rect x="20" y="35" width="15" height="15"/>
+  <rect x="420" y="28" width="14" height="17"/>
+</g>
+
+<!-- Central rendering pavilion — main volume -->
+<g stroke="#B8B5AE" stroke-width="1.2" fill="none">
+  <!-- Perspective box -->
+  <polygon points="180,80 300,60 350,90 230,110"/>
+  <polygon points="180,80 180,130 230,160 230,110"/>
+  <polygon points="230,110 230,160 350,140 350,90"/>
+  <!-- Floor lines -->
+  <line x1="180" y1="95" x2="230" y2="125"/>
+  <line x1="230" y1="125" x2="350" y2="105"/>
+  <line x1="180" y1="110" x2="230" y2="140"/>
+</g>
+
+<!-- Interior glow — warm window lights -->
+<g fill="#8E3B3B" opacity="0.12">
+  <rect x="230" y="115" width="15" height="10" transform="skewY(-15)"/>
+  <rect x="260" y="110" width="15" height="10" transform="skewY(-15)"/>
+  <rect x="290" y="105" width="15" height="10" transform="skewY(-15)"/>
+  <animate attributeName="opacity" values="0.08;0.18;0.08" dur="4s" repeatCount="indefinite"/>
+</g>
+
+<!-- Light rays from pavilion — animated radiance -->
+<g stroke="#8E3B3B" stroke-width="0.3" opacity="0.15" fill="none">
+  <line x1="230" y1="125" x2="180" y2="160">
+    <animate attributeName="opacity" values="0.1;0.25;0.1" dur="3s" repeatCount="indefinite"/>
+  </line>
+  <line x1="280" y1="115" x2="330" y2="155">
+    <animate attributeName="opacity" values="0.15;0.3;0.15" dur="2.8s" repeatCount="indefinite"/>
+  </line>
+</g>
+
+<!-- Vegetation — swaying trees -->
+<g fill="#E4E6E0" stroke="#B8B5AE" stroke-width="0.4" opacity="0.75">
+  <g>
+    <circle cx="120" cy="70" r="9">
+      <animateTransform attributeName="transform" type="rotate" values="0 120 90; 4 120 90; 0 120 90; -4 120 90; 0 120 90" dur="6s" repeatCount="indefinite"/>
+    </circle>
+    <line x1="120" y1="79" x2="120" y2="100" stroke="#B8B5AE" stroke-width="0.4"/>
+  </g>
+  <g>
+    <circle cx="380" cy="70" r="8">
+      <animateTransform attributeName="transform" type="rotate" values="0 380 90; -3 380 90; 0 380 90; 3 380 90; 0 380 90" dur="7s" repeatCount="indefinite"/>
+    </circle>
+    <line x1="380" y1="78" x2="380" y2="100" stroke="#B8B5AE" stroke-width="0.4"/>
+  </g>
+  <g>
+    <circle cx="400" cy="80" r="6">
+      <animateTransform attributeName="transform" type="rotate" values="0 400 100; 3 400 100; 0 400 100" dur="5.5s" repeatCount="indefinite"/>
+    </circle>
+    <line x1="400" y1="86" x2="400" y2="105" stroke="#B8B5AE" stroke-width="0.4"/>
+  </g>
+</g>
+
+<!-- Water pond -->
+<g>
+  <ellipse cx="330" cy="160" rx="45" ry="14" fill="url(#waterGrad)"/>
+  <g clip-path="url(#pond2)">
+    <path d="M295 158 Q312 155 330 158 Q348 161 365 158" fill="none" stroke="#B8B5AE" stroke-width="0.35" opacity="0.45">
+      <animate attributeName="d" dur="4.5s" repeatCount="indefinite"
+        values="M295 158 Q312 155 330 158 Q348 161 365 158;
+                M295 158 Q312 161 330 155 Q348 158 365 158;
+                M295 158 Q312 155 330 158 Q348 161 365 158"/>
+    </path>
+  </g>
+  <ellipse cx="330" cy="160" rx="45" ry="14" fill="none" stroke="#B8B5AE" stroke-width="0.7" opacity="0.45"/>
+</g>
+
+<!-- People with maroon accent -->
+<g fill="#8E3B3B">
+  <circle cx="200" cy="140" r="1.5">
+    <animate attributeName="cy" values="140;143;140" dur="4s" repeatCount="indefinite"/>
+  </circle>
+  <rect x="198.5" y="141" width="3" height="5" rx="1"/>
+  <circle cx="260" cy="150" r="1.5"/>
+  <rect x="258.5" y="151" width="3" height="5" rx="1"/>
+</g>
+
+<!-- Draw-on dashed paths -->
+<g stroke="#B8B5AE" stroke-width="0.5" fill="none" opacity="0.35" stroke-dasharray="3,3">
+  <path d="M180 140 Q200 150 220 150 Q260 150 280 155 Q310 160 330 160">
+    <animate attributeName="stroke-dashoffset" values="0;18" dur="3s" repeatCount="indefinite"/>
+  </path>
+</g>
+
+<!-- Datum lines -->
+<g stroke="#B8B5AE" stroke-width="0.2" opacity="0.12">
+  <line x1="180" y1="160" x2="400" y2="160"/>
+  <text x="405" y="163" font-size="4" fill="#B8B5AE" font-family="monospace">+0.00</text>
+</g>
+
+<!-- Edge fade -->
+<rect width="30" height="200" fill="#F2F0EB" opacity="0.3"/>
+<rect x="450" width="30" height="200" fill="#F2F0EB" opacity="0.3"/>
+
+</svg>

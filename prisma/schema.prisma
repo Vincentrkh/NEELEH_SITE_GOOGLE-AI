@@ -1,0 +1,694 @@
+// آکادمی معماری نیله — CMS قابل توسعه
+// بک‌اند: Next.js + Prisma. در محیط توسعه از SQLite استفاده می‌شود؛
+// برای استقرار روی سرور واقعی کافی است DATABASE_URL به PostgreSQL تغییر کند.
+// ساختار آماده: دوره‌ها، ثبت‌نام، لیدها، فایل‌ها، نقش‌های پویا،
+// تنظیمات تم، وبلاگ، صفحات ساکن، فروشگاه دیجیتال (آینده)، اتصال LMS (آینده).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────── کاربران و دسترسی‌ها ───────────────────────────
+
+model User {
+  id        String   @id @default(cuid())
+  phone     String   @unique // شناسه اصلی ورود (شماره موبایل ایرانی)
+  email     String?
+  name      String
+  nameEn    String? // نام به انگلیسی — در حالت EN سایت/ادمین نمایش داده می‌شود
+  password  String // هش scrypt: "salt:hash"
+  avatarUrl String?
+  field     String? // رشته تحصیلی
+  education String? // سوابق تحصیلی
+  bio       String? // معرفی کوتاه (مثلاً برای پروفایل مدرس)
+  bioEn     String? // معرفی انگلیسی
+  telegram  String?
+  whatsapp  String?
+  eitaa     String?
+  bale      String?
+  instagram String?
+  linkedin  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userRoles        UserRole[]
+  registrations    Registration[]
+  posts            Post[]
+  sessions         Session[]
+  comments         Comment[]
+  files            FileAsset[]
+  coursesTaught    Course[]                  @relation("CourseInstructor")
+  sentMessages     StudentMessage[]          @relation("MessageSender")
+  receivedMessages StudentMessageRecipient[] @relation("MessageStudent")
+}
+
+/// نقش‌ها — پویا. ادمین می‌تواند نقش جدید بسازد و دسترسی اختصاص دهد.
+model Role {
+  id          String   @id @default(cuid())
+  name        String   @unique // مثلاً ADMIN, EDITOR, STUDENT
+  label       String // نمایشی: "ادمین"، "ویراستار"
+  description String?
+  isSystem    Boolean  @default(false) // نقش‌های سیستمی قابل حذف نیستند
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  userRoles      UserRole[]
+  rolePermissions RolePermission[]
+}
+
+/// مجوزها — لیست ثابت از کلیدها (در lib/permissions.ts مدیریت می‌شود)
+model Permission {
+  id    String @id @default(cuid())
+  key   String @unique // مثلاً "course.create"، "registration.update"
+  label String // نمایشی
+
+  rolePermissions RolePermission[]
+}
+
+/// رابطه چندبه‌چند کاربر-نقش
+model UserRole {
+  id     String @id @default(cuid())
+  userId String
+  roleId String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId])
+}
+
+/// رابطه چندبه‌چند نقش-مجوز
+model RolePermission {
+  id           String @id @default(cuid())
+  roleId       String
+  permissionId String
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+}
+
+/// نشست کاربر — توکن‌های httpOnly cookie
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique // توکن تصادفی نشست
+  expiresAt DateTime
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ─────────────────────────── دوره‌ها و سرفصل‌ها ───────────────────────────
+
+model Course {
+  id          String  @id @default(cuid())
+  slug        String  @unique
+  title       String
+  titleEn     String? // عنوان انگلیسی — اگر خالی باشد فارسی نمایش داده می‌شود
+  tier        String // BEGINNER | INTERMEDIATE | PRO
+  category    String
+  categoryEn  String?
+  tags        String  @default("") // جدا شده با کاما
+  tagsEn      String  @default("") // جدا شده با کاما
+  about       String  @default("") // چالش و راه‌حل دوره
+  aboutEn     String  @default("")
+  description String  @default("") // خلاصه کوتاه برای کارت
+  descriptionEn String @default("")
+  outputs     String  @default("") // خروجی کارآموز — هر خط یک مورد
+  outputsEn   String  @default("")
+  prereqs     String  @default("") // پیش‌نیازها
+  prereqsEn   String  @default("")
+  durationHrs        Int     @default(0)
+  sessionDurationHrs Float   @default(2)
+  sessionsPerWeek    Int     @default(2)
+  price              Int     @default(0) // تومان — ۰ = رایگان/تماس بگیرید
+  capacity           Int     @default(12)
+  regStatus          String  @default("OPEN") // OPEN | FULL | CLOSED
+  featured           Boolean @default(false)
+  bannerUrl          String?
+  instructorId       String? // مدرس (User با نقش مدرس/ادمین)
+  sortOrder          Int     @default(0)
+  published          Boolean @default(true)
+  // ── آمادگی آینده (LMS / فروشگاه) ──
+  onlineReady        Boolean @default(false)
+  externalLmsUrl     String?
+  // ── ابرداده ساختاری دوره (HANDOFF v2.0) ──
+  formats            String? // IN_PERSON | HYBRID | ONLINE_COHORT
+  learningOutcomes   String?
+  skills             String?
+  tools              String?
+  audience           String?
+  assessmentMethod   String?
+  aiPolicy           String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  instructor    User?           @relation("CourseInstructor", fields: [instructorId], references: [id])
+  sections      CourseSection[]
+  resources     CourseResource[]
+  sessions      CourseSession[]
+  registrations Registration[]
+  messages      StudentMessage[]
+
+  @@index([tier])
+  @@index([featured])
+}
+
+model CourseSection {
+  id       String @id @default(cuid())
+  courseId String
+  title    String
+  items    String @default("") // هر خط یک سرفصل
+  order    Int    @default(0)
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@index([courseId])
+}
+
+model CourseSession {
+  id                   String    @id @default(cuid())
+  courseId             String
+  title                String
+  date                 DateTime?
+  format               String?   // IN_PERSON | HYBRID | ONLINE_COHORT
+  startAt              DateTime?
+  endAt                DateTime?
+  timezone             String    @default("Asia/Tehran")
+  capacity             Int?
+  priceAmount          Int?
+  locationOrPlatform   String?
+  status               String    @default("OPEN") // SCHEDULED | OPEN | FULL | COMPLETED | CANCELLED
+  registrationDeadline DateTime?
+  order                Int       @default(0)
+  createdAt            DateTime  @default(now())
+
+  course        Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  attendance    Attendance[]
+  registrations Registration[]
+
+  @@index([courseId])
+  @@index([status])
+}
+
+model CourseResource {
+  id              String   @id @default(cuid())
+  courseId        String
+  title           String
+  description     String?
+  kind            String   @default("HANDOUT") // EXERCISE | PROJECT | HANDOUT
+  softwareVersion String?
+  licenseTerms    String?
+  isPublic        Boolean  @default(false)
+  fileId          String? // ارجاع به FileAsset آپلودشده
+  url             String? // یا لینک خارجی مستقیم
+  createdAt       DateTime @default(now())
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  file   FileAsset? @relation(fields: [fileId], references: [id])
+
+  @@index([courseId])
+  @@index([isPublic])
+}
+
+// ─────────────────────── ثبت‌نام و حضور و غیاب ───────────────────────
+
+model Registration {
+  id                String    @id @default(cuid())
+  studentId         String
+  courseId          String
+  sessionId         String?
+  trackingCode      String?
+  priceSnapshot     Int?
+  currencySnapshot  String    @default("IRR_TOMAN")
+  status            String    @default("PENDING") // PENDING | CONFIRMED | CANCELLED
+  paymentStatus     String    @default("UNPAID") // UNPAID | PAID
+  note              String?
+  scheduleStartDate DateTime?
+  confirmedAt       DateTime?
+  sessionsPerWeek   Int?
+  sessionHours      Float?
+  autoAttendance    Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  student           User                      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  course            Course                    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  session           CourseSession?            @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  attendance        Attendance[]
+  attendanceDays    StudentAttendanceDay[]
+  messageRecipients StudentMessageRecipient[]
+
+  @@unique([studentId, courseId])
+  @@index([courseId])
+  @@index([sessionId])
+  @@index([status])
+  @@index([paymentStatus])
+}
+
+model Attendance {
+  id             String  @id @default(cuid())
+  registrationId String
+  sessionId      String
+  present        Boolean @default(false)
+
+  registration Registration  @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  session      CourseSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([registrationId, sessionId])
+}
+
+model StudentAttendanceDay {
+  id               String    @id @default(cuid())
+  registrationId   String
+  dateKey          String    // YYYY-MM-DD (Asia/Tehran)
+  sessionIndex     Int       @default(1)
+  status           String    @default("AUTO_PRESENT") // AUTO_PRESENT | PRESENT | ABSENT | DECLARED_ABSENCE | CANCELLED_LEAVE
+  studentNote      String?
+  adminNote        String?
+  declaredAt       DateTime?
+  reviewedById     String?
+  reviewedAt       DateTime?
+  lockedForStudent Boolean   @default(false)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  registration Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+
+  @@unique([registrationId, dateKey])
+  @@index([registrationId])
+  @@index([status])
+  @@index([dateKey])
+}
+
+model StudentMessage {
+  id          String   @id @default(cuid())
+  senderId    String?
+  title       String
+  body        String
+  channels    String   @default("CARTABLE") // comma-separated: CARTABLE,EMAIL,TELEGRAM,WHATSAPP,EITAA,BALE
+  isBroadcast Boolean  @default(false)
+  courseId    String?
+  createdAt   DateTime @default(now())
+
+  sender     User?                     @relation("MessageSender", fields: [senderId], references: [id], onDelete: SetNull)
+  course     Course?                   @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  recipients StudentMessageRecipient[]
+
+  @@index([createdAt])
+  @@index([courseId])
+}
+
+model StudentMessageRecipient {
+  id              String    @id @default(cuid())
+  messageId       String
+  studentId       String
+  registrationId  String?
+  readAt          DateTime?
+  emailStatus     String?   // SENT | FAILED | NOT_CONFIGURED | NO_EMAIL | SKIPPED
+  emailError      String?
+  messengerStatus String?   // LINK_READY | SENT | FAILED | NO_CONTACT | SKIPPED
+  messengerTarget String?
+  createdAt       DateTime  @default(now())
+
+  message      StudentMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  student      User           @relation("MessageStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  registration Registration?  @relation(fields: [registrationId], references: [id], onDelete: SetNull)
+
+  @@unique([messageId, studentId])
+  @@index([studentId, readAt])
+  @@index([registrationId])
+}
+
+// ───────────────────── لیدهای مشاوره رایگان ─────────────────────
+
+model Lead {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String
+  email     String?
+  message   String   @default("")
+  status    String   @default("NEW") // NEW | CONTACTED | CONVERTED
+  note      String? // یادداشت ادمین
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+}
+
+// ─────────────────────── فایل‌های آپلودشده ───────────────────────
+
+model FileAsset {
+  id         String   @id @default(cuid())
+  filename   String // نام فایل اصلی کاربر
+  storedName String // نام ذخیره‌شده روی دیسک
+  mimeType   String
+  size       Int // بایت
+  path       String // مسیر نسبی در /public/uploads
+  url        String // URL عمومی
+  uploaderId String?
+  createdAt  DateTime @default(now())
+
+  uploader   User?           @relation(fields: [uploaderId], references: [id])
+  resources  CourseResource[]
+}
+
+// ─────────────────────── تنظیمات عمومی (key-value) ───────────────────────
+// برای محتوای صفحه اصلی: hero title، hero tagline، آمار، آدرس، ...
+
+model Setting {
+  id    String @id @default(cuid())
+  key   String @unique
+  value String @default("") // JSON یا متن ساده
+  type  String @default("text") // text | json | markdown
+  label String?
+}
+
+// ─────────────────────── تنظیمات تم (singleton) ───────────────────────
+// یک رکورد فعلی برای کل سایت. ادمین از پنل /dashboard/theme آن را ویرایش می‌کند.
+
+model ThemeSetting {
+  id              String   @id @default(cuid())
+  isActive        Boolean  @default(true) // اگر چند رکورد بود، رکورد فعال
+  // پالت
+  backgroundColor String   @default("#fafaf7")
+  foregroundColor String   @default("#1a1a18")
+  primaryColor    String   @default("#1f1f1c")
+  accentColor     String   @default("#a8632c") // خاک‌رس فعلی
+  mutedColor      String   @default("#8a8a85")
+  // فونت
+  fontHeading     String   @default("Estedad Var")
+  fontBody        String   @default("Vazirmatn Var")
+  // شعاع گوشه و فاصله
+  radius          String   @default("0.75rem")
+  // حالت نمایش
+  mode            String   @default("LIGHT") // LIGHT | DARK | AUTO
+  // CSS سفارشی ادمین
+  customCss       String   @default("")
+  updatedAt       DateTime @updatedAt
+}
+
+// ─────────────────────── وبلاگ ───────────────────────
+
+model Post {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  title       String
+  titleEn     String?
+  excerpt     String   @default("") // خلاصه کوتاه برای کارت
+  excerptEn   String   @default("")
+  content     String   @default("") // Markdown
+  contentEn   String   @default("") // Markdown انگلیسی
+  coverUrl    String?
+  authorId    String?
+  status      String   @default("DRAFT") // DRAFT | PUBLISHED | ARCHIVED
+  featured    Boolean  @default(false)
+  publishedAt DateTime?
+  readingMins Int      @default(0) // زمان مطالعه تخمینی
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  author     User?          @relation(fields: [authorId], references: [id])
+  categories PostCategory[]
+  tags       PostTag[]
+  comments   Comment[]
+
+  @@index([status])
+  @@index([publishedAt])
+}
+
+model Category {
+  id    String @id @default(cuid())
+  slug  String @unique
+  name  String
+  nameEn String?
+  description String?
+  posts PostCategory[]
+
+  @@index([slug])
+}
+
+model Tag {
+  id    String @id @default(cuid())
+  slug  String @unique
+  name  String
+  nameEn String?
+  posts PostTag[]
+}
+
+model PostCategory {
+  id       String @id @default(cuid())
+  postId   String
+  categoryId String
+
+  post     Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, categoryId])
+}
+
+model PostTag {
+  id    String @id @default(cuid())
+  postId String
+  tagId  String
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, tagId])
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  postId    String
+  authorId  String?
+  name      String // اگر مهمان بود
+  email     String?
+  content   String
+  status    String   @default("PENDING") // PENDING | APPROVED | SPAM | REJECTED
+  parentId  String? // پاسخ به نظرات
+  createdAt DateTime @default(now())
+
+  post    Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author  User? @relation(fields: [authorId], references: [id])
+
+  @@index([postId])
+  @@index([status])
+}
+
+// ─────────────────────── صفحات ساکن (درباره ما، تماس، قوانین) ───────────────────────
+
+model StaticPage {
+  id         String   @id @default(cuid())
+  slug       String   @unique
+  title      String
+  titleEn    String?
+  content    String   @default("") // Markdown
+  contentEn  String   @default("") // Markdown انگلیسی
+  excerpt    String?
+  excerptEn  String? // خلاصه انگلیسی — اگر خالی باشد در حالت EN نمایش داده نمی‌شود
+  status     String   @default("DRAFT") // DRAFT | PUBLISHED
+  showInMenu Boolean  @default(false)
+  sortOrder  Int      @default(0)
+  parentId   String? // برای زیرصفحه‌ها
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  parent StaticPage? @relation("StaticPageTree", fields: [parentId], references: [id])
+  children StaticPage[] @relation("StaticPageTree")
+
+  @@index([showInMenu])
+}
+
+// ──────────────── آینده: فروشگاه فایل‌های دیجیتال ────────────────
+// ساختار از الان آماده است؛ فقط کافی است UI فروش اضافه شود.
+
+model Product {
+  id          String   @id @default(cuid())
+  title       String
+  description String   @default("")
+  price       Int     @default(0) // تومان
+  fileId      String? // فایل قابل دانلود (FileAsset)
+  fileUrl     String? // یا لینک خارجی
+  isPublished Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ──────────────── مدیریت منوها (مثل منوهای وردپرس) ────────────────
+// دو جایگاه: header (منوی همبرگری امضادار صفحه اصلی) و footer (دسترسی سریع).
+// آیتم‌های منوی هدر بلوک‌های پلکانی هستند؛ kind=archive یعنی بلوک کوچک
+// ثابتِ پایین (مثل Experiments در طراحی مرجع). شماره‌گذاری خودکار است.
+
+model MenuItem {
+  id       String  @id @default(cuid())
+  location String  @default("header") // header | footer
+  labelFa  String // برچسب فارسی
+  labelEn  String // برچسب انگلیسی
+  href     String // آدرس (مسیر داخلی، لنگر # یا URL کامل)
+  bgColor  String  @default("#cbcccd") // رنگ بلوک (فقط header)
+  kind     String  @default("block") // header: block | archive
+  fillIndicator Boolean @default(false) // مربع شمارهٔ توپُر (فقط header)
+  order    Int     @default(0)
+  isActive Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([location, order])
+}
+
+// ─────────────────────────── سیستم استایل تصویر ─────────────────────────────────
+// استایل بصری همه‌ی تصاویر برداری سایت — قابل تنظیم از پنل مدیریت.
+// الهام‌گرفته از سبک معماری خطی: خطوط مویی + پر مارون + پس‌زمینه کرم
+model IllustrationStyle {
+  id              String   @id @default(cuid())
+  isActive        Boolean  @default(true)
+
+  // رنگ‌ها
+  bgColor         String   @default("#F2F0EB")  // پس‌زمینه — کرم گرم
+  lineColor       String   @default("#B8B5AE")  // خطوط اصلی — خاکستری گرم
+  accentColor     String   @default("#8E3B3B")  // رنگ تأکید — مارون/قرمز آجری
+  waterColor      String   @default("#DCE4E4")  // آب — تیل کم‌رنگ
+  vegetationColor String   @default("#E4E6E0")  // گیاهان — سبز خاکستری
+  fillColor       String   @default("#D8D5CE")  // پرهای معمول — خاکستری متوسط
+
+  // ضخامت خطوط (در واحد SVG px)
+  thinLineWidth   Float    @default(0.5)   // خطوط مویی (بافت شهر، درختان)
+  thickLineWidth  Float    @default(1.5)   // خطوط اصلی (برش، حجم اصلی)
+  outlineWidth    Float    @default(2.0)  // خطوط لبه (کانتور اصلی)
+
+  // میزان fade
+  edgeFadeOpacity Float    @default(0.2)   // opacity حاشیه‌ها (0-1)
+  centerOpacity   Float    @default(0.9)   // opacity مرکز (0-1)
+  fadeRadius      Float    @default(0.6)   // نسبتی از تصویر که fade می‌شود (0-1)
+
+  // انیمیشن
+  animationSpeed  Float    @default(1.0)   // ضریب سرعت انیمیشن (1 = نرمال)
+  enableWave      Boolean  @default(true)  // موج آب
+  enableSway      Boolean  @default(true)  // تکان درختان
+  enableDraw      Boolean  @default(true)  // draw-on خطوط
+  enablePulse     Boolean  @default(true)  // پالس عناصر تأکیدی
+
+  updatedAt       DateTime @updatedAt
+}
+
+// ───────────────────── رویدادها، اتوماسیون و هوش مصنوعی ─────────────────────
+
+model DomainEvent {
+  id          String   @id @default(cuid())
+  name        String
+  entityType  String
+  entityId    String
+  payloadJson String   @default("{}")
+  actorId     String?
+  createdAt   DateTime @default(now())
+
+  @@index([name])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
+
+model WorkflowDefinition {
+  id               String   @id @default(cuid())
+  key              String   @unique
+  name             String
+  nameEn           String?
+  triggerEvent     String
+  enabled          Boolean  @default(true)
+  requiresApproval Boolean  @default(true)
+  description      String   @default("")
+  descriptionEn    String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  runs WorkflowRun[]
+}
+
+model WorkflowRun {
+  id           String    @id @default(cuid())
+  workflowId   String
+  eventId      String?
+  status       String    @default("QUEUED") // QUEUED | WAITING_APPROVAL | SUCCEEDED | FAILED | CANCELLED
+  summary      String?
+  errorMessage String?
+  startedAt    DateTime  @default(now())
+  finishedAt   DateTime?
+
+  workflow  WorkflowDefinition @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  approvals ApprovalTask[]
+
+  @@index([workflowId])
+  @@index([status])
+}
+
+model ApprovalTask {
+  id             String    @id @default(cuid())
+  workflowRunId  String?
+  kind           String    @default("LEAD_REPLY_DRAFT")
+  title          String
+  entityType     String
+  entityId       String
+  proposedAction String    @default("")
+  payloadJson    String    @default("{}")
+  status         String    @default("PENDING") // PENDING | APPROVED | REJECTED
+  reviewedById   String?
+  reviewNote     String?
+  reviewedAt     DateTime?
+  createdAt      DateTime  @default(now())
+
+  workflowRun WorkflowRun? @relation(fields: [workflowRunId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([entityType, entityId])
+}
+
+model AIConsentRecord {
+  id        String   @id @default(cuid())
+  subjectId String
+  scope     String   // COURSE_GUIDE | LEARNING_ASSISTANT | ADMIN_OPS
+  granted   Boolean  @default(true)
+  version   String   @default("1.0")
+  createdAt DateTime @default(now())
+
+  @@index([subjectId, scope])
+}
+
+model AIUsageLedger {
+  id        String   @id @default(cuid())
+  actorId   String?
+  feature   String
+  provider  String   @default("gemini")
+  model     String
+  status    String   @default("SUCCESS") // SUCCESS | ERROR | CONFIG_REQUIRED
+  latencyMs Int      @default(0)
+  errorCode String?
+  createdAt DateTime @default(now())
+
+  @@index([feature, createdAt])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  action     String
+  entityType String
+  entityId   String
+  beforeJson String?
+  afterJson  String?
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
+

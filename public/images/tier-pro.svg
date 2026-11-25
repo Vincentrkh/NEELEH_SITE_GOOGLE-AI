@@ -1,0 +1,167 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 200" width="480" height="200">
+
+<defs>
+  <linearGradient id="bg3" x1="0" y1="0" x2="1" y2="1">
+    <stop stop-color="#F2F0EB"/>
+    <stop offset="1" stop-color="#EAE7E0"/>
+  </linearGradient>
+  <filter id="glow3"><feGaussianBlur stdDeviation="2"/></filter>
+  <clipPath id="pond3"><ellipse cx="90" cy="165" rx="50" ry="13"/></clipPath>
+</defs>
+
+<rect width="480" height="200" fill="url(#bg3)"/>
+
+<!-- Grid background — parametric design aesthetic -->
+<g stroke="#B8B5AE" stroke-width="0.2" opacity="0.1">
+  <line x1="0" y1="0" x2="480" y2="0"/><line x1="0" y1="25" x2="480" y2="25"/>
+  <line x1="0" y1="50" x2="480" y2="50"/><line x1="0" y1="75" x2="480" y2="75"/>
+  <line x1="0" y1="100" x2="480" y2="100"/><line x1="0" y1="125" x2="480" y2="125"/>
+  <line x1="0" y1="150" x2="480" y2="150"/><line x1="0" y1="175" x2="480" y2="175"/>
+  <line x1="60" y1="0" x2="60" y2="200"/><line x1="120" y1="0" x2="120" y2="200"/>
+  <line x1="180" y1="0" x2="180" y2="200"/><line x1="240" y1="0" x2="240" y2="200"/>
+  <line x1="300" y1="0" x2="300" y2="200"/><line x1="360" y1="0" x2="360" y2="200"/>
+  <line x1="420" y1="0" x2="420" y2="200"/>
+</g>
+
+<!-- Parametric facade generator — animated grid cells -->
+<g stroke="#B8B5AE" stroke-width="0.6" fill="none">
+  <!-- Facade panel grid -->
+  <g>
+    <rect x="200" y="50" width="24" height="18">
+      <animate attributeName="height" values="18;12;18" dur="4s" repeatCount="indefinite"/>
+    </rect>
+    <rect x="226" y="50" width="24" height="18">
+      <animate attributeName="height" values="18;20;14;18" dur="3s" repeatCount="indefinite"/>
+    </rect>
+    <rect x="252" y="50" width="24" height="18">
+      <animate attributeName="height" values="14;20;18;14" dur="3.5s" repeatCount="indefinite"/>
+    </rect>
+    <rect x="278" y="50" width="24" height="18">
+      <animate attributeName="height" values="20;14;18;20" dur="4.5s" repeatCount="indefinite"/>
+    </rect>
+  </g>
+  <g>
+    <rect x="200" y="70" width="24" height="16">
+      <animate attributeName="height" values="16;10;16" dur="3.8s" repeatCount="indefinite"/>
+    </rect>
+    <rect x="226" y="70" width="24" height="16">
+      <animate attributeName="height" values="10;18;12;10" dur="4.2s" repeatCount="indefinite"/>
+    </rect>
+    <rect x="252" y="70" width="24" height="16">
+      <animate attributeName="height" values="18;8;16;18" dur="3.2s" repeatCount="indefinite"/>
+    </rect>
+    <rect x="278" y="70" width="24" height="16">
+      <animate attributeName="height" values="12;16;10;12" dur="4.8s" repeatCount="indefinite"/>
+    </rect>
+  </g>
+  <g>
+    <rect x="200" y="88" width="24" height="14">
+      <animate attributeName="height" values="14;8;14" dur="3.5s" repeatCount="indefinite"/>
+    </rect>
+    <rect x="226" y="88" width="24" height="14">
+      <animate attributeName="height" values="8;14;10;8" dur="4.1s" repeatCount="indefinite"/>
+    </rect>
+    <rect x="252" y="88" width="24" height="14">
+      <animate attributeName="height" values="12;16;8;12" dur="3.9s" repeatCount="indefinite"/>
+    </rect>
+    <rect x="278" y="88" width="24" height="14">
+      <animate attributeName="height" values="16;10;14;16" dur="4.6s" repeatCount="indefinite"/>
+    </rect>
+  </g>
+</g>
+
+<!-- Maroon accent panels — pulsing -->
+<g fill="#8E3B3B">
+  <rect x="200" y="104" width="24" height="3" opacity="0.15">
+    <animate attributeName="opacity" values="0.08;0.25;0.08" dur="2s" repeatCount="indefinite"/>
+  </rect>
+  <rect x="252" y="104" width="24" height="3" opacity="0.1">
+    <animate attributeName="opacity" values="0.05;0.2;0.05" dur="2.5s" repeatCount="indefinite"/>
+  </rect>
+</g>
+
+<!-- AI data nodes — floating maroon dots with connections -->
+<g fill="#8E3B3B" opacity="0.6">
+  <circle cx="180" cy="60" r="2">
+    <animate attributeName="cy" values="60;52;60" dur="3s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="320" cy="65" r="2">
+    <animate attributeName="cy" values="65;57;65" dur="3.5s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="150" cy="85" r="1.5">
+    <animate attributeName="cy" values="85;78;85" dur="2.8s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="350" cy="80" r="1.5">
+    <animate attributeName="cy" values="80;73;80" dur="3.2s" repeatCount="indefinite"/>
+  </circle>
+</g>
+<!-- Connection lines between AI nodes -->
+<g stroke="#8E3B3B" stroke-width="0.2" opacity="0.15" fill="none">
+  <line x1="180" y1="60" x2="320" y2="65">
+    <animate attributeName="stroke-dasharray" values="0,200;200,0" dur="2s" repeatCount="indefinite"/>
+  </line>
+  <line x1="150" y1="85" x2="350" y2="80">
+    <animate attributeName="stroke-dasharray" values="0,300;300,0" dur="2.5s" repeatCount="indefinite"/>
+  </line>
+</g>
+
+<!-- Automation gear/mechanism — rotating dashed circle -->
+<g stroke="#B8B5AE" stroke-width="0.5" fill="none" opacity="0.3">
+  <circle cx="400" cy="55" r="15" stroke-dasharray="4,3">
+    <animateTransform attributeName="transform" type="rotate" from="0 400 55" to="360 400 55" dur="12s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="400" cy="55" r="8" stroke-dasharray="2,2">
+    <animateTransform attributeName="transform" type="rotate" from="360 400 55" to="0 400 55" dur="8s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="400" cy="55" r="1.5" fill="#8E3B3B" stroke="none">
+    <animate attributeName="r" values="1.5;2.5;1.5" dur="2s" repeatCount="indefinite"/>
+  </circle>
+</g>
+
+<!-- Ground line + vegetation -->
+<line x1="0" y1="165" x2="480" y2="165" stroke="#B8B5AE" stroke-width="0.5" opacity="0.3"/>
+
+<g fill="#E4E6E0" stroke="#B8B5AE" stroke-width="0.35" opacity="0.6">
+  <circle cx="60" cy="150" r="6">
+    <animateTransform attributeName="transform" type="rotate" values="0 60 163; 2 60 163; 0 60 163" dur="6s" repeatCount="indefinite"/>
+  </circle>
+  <line x1="60" y1="156" x2="60" y2="165" stroke="#B8B5AE" stroke-width="0.35"/>
+  <circle cx="450" cy="145" r="5">
+    <animateTransform attributeName="transform" type="rotate" values="0 450 155; -2 450 155; 0 450 155" dur="5s" repeatCount="indefinite"/>
+  </circle>
+  <line x1="450" y1="150" x2="450" y2="165" stroke="#B8B5AE" stroke-width="0.35"/>
+</g>
+
+<!-- Water pond bottom-left -->
+<g>
+  <ellipse cx="90" cy="165" rx="50" ry="13" fill="#DCE4E4" opacity="0.5"/>
+  <g clip-path="url(#pond3)">
+    <path d="M50 163 Q70 160 90 163 Q110 166 130 163" fill="none" stroke="#B8B5AE" stroke-width="0.3" opacity="0.4">
+      <animate attributeName="d" dur="4s" repeatCount="indefinite"
+        values="M50 163 Q70 160 90 163 Q110 166 130 163;
+                M50 163 Q70 166 90 160 Q110 163 130 163;
+                M50 163 Q70 160 90 163 Q110 166 130 163"/>
+    </path>
+  </g>
+  <ellipse cx="90" cy="165" rx="50" ry="13" fill="none" stroke="#B8B5AE" stroke-width="0.6" opacity="0.35"/>
+</g>
+
+<!-- Birds — accent flight path -->
+<g fill="#8E3B3B" opacity="0.5">
+  <path d="M100 30 Q103 27 106 30 Q103 29 100 30 Z">
+    <animate attributeName="d" dur="15s" repeatCount="indefinite"
+      values="M100 30 Q103 27 106 30 Q103 29 100 30 Z;
+              M200 25 Q203 22 206 25 Q203 24 200 25 Z;
+              M300 32 Q303 29 306 32 Q303 31 300 32 Z;
+              M400 27 Q403 24 406 27 Q403 26 400 27 Z;
+              M300 32 Q303 29 306 32 Q303 31 300 32 Z;
+              M200 25 Q203 22 206 25 Q203 24 200 25 Z;
+              M100 30 Q103 27 106 30 Q103 29 100 30 Z"/>
+  </path>
+</g>
+
+<!-- Edge fade -->
+<rect width="25" height="200" fill="#F2F0EB" opacity="0.3"/>
+<rect x="455" width="25" height="200" fill="#F2F0EB" opacity="0.3"/>
+
+</svg>

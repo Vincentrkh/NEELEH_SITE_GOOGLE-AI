@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 400 60" preserveAspectRatio="none">
+  <!--
+    خط دست‌نویس تک برای باکس‌های باریک (دکمه، input).
+    گوشه‌های باز با overshoot.
+  -->
+  <polyline points="-8,7 30,5 60,8 95,5 130,8 165,5 200,8 235,5 270,8 305,5 340,8 408,6"
+            fill="none" stroke="#1a1a1a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <polyline points="394,-8 393,30 395,68"
+            fill="none" stroke="#1a1a1a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <polyline points="408,54 340,55 305,52 270,55 235,52 200,55 165,52 130,55 95,52 60,55 30,53 -8,54"
+            fill="none" stroke="#1a1a1a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <polyline points="6,68 8,30 5,-8"
+            fill="none" stroke="#1a1a1a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

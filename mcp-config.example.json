@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "neeleh": {
+      "command": "node",
+      "args": [
+        "--experimental-strip-types",
+        "--no-warnings",
+        "/home/z/my-project/src/mcp/server.ts"
+      ],
+      "env": {
+        "DATABASE_URL": "file:/home/z/my-project/db/custom.db"
+      }
+    }
+  }
+}
