@@ -244,20 +244,41 @@ export function SystemUpdaterPanel({
   return (
     <div className="space-y-8">
       {/* Zero-Downtime & Data Preservation Banner */}
-      <div className="rounded-lg border border-emerald-200 bg-emerald-50/75 p-4 sm:p-5 text-emerald-950 flex items-start gap-3.5">
-        <ShieldCheck className="size-5 text-emerald-700 shrink-0 mt-0.5" />
-        <div className="space-y-1.5 text-xs leading-relaxed">
-          <div className="font-semibold text-sm">
+      <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4 sm:p-5 text-zinc-100 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/95 flex items-start gap-3.5">
+        <div className="rounded-md bg-emerald-500/15 border border-emerald-500/30 p-2 shrink-0 mt-0.5">
+          <ShieldCheck className="size-4 text-emerald-400" />
+        </div>
+        <div className="space-y-2 text-xs leading-relaxed flex-1 min-w-0">
+          <div className="font-semibold text-sm text-white">
             {fa
               ? "تضمین حفظ ۱۰۰٪ داده‌ها و بدون قطعی برای کاربران"
               : "100% Data Preservation & Zero-Downtime Guarantee"}
           </div>
-          <p>
-            {fa
-              ? "پیش از هر بروزرسانی، یک بکاپ فوری در سرور گرفته می‌شود و فایل‌های دیتابیس (db/custom.db)، فایل‌های آپلودشده کاربران (public/uploads/)، متغیرهای محیطی (.env) و کلید نشست‌ها دست‌نخورده باقی می‌مانند. همچنین اسکیمای دیتابیس فقط به‌صورت افزایشی همگام‌سازی می‌شود."
-              : "Before every update, an automatic snapshot is saved while db/custom.db, public/uploads/, .env, and session secrets are strictly preserved. Prisma migrations run additively."}
+          <p className="text-zinc-300">
+            {fa ? (
+              <>
+                پیش از هر بروزرسانی، یک بکاپ فوری در سرور گرفته می‌شود و فایل‌های دیتابیس{" "}
+                <code dir="ltr" className="mx-0.5 rounded bg-zinc-800 px-1.5 py-0.5 font-mono text-[11px] text-emerald-300">
+                  db/custom.db
+                </code>
+                ، فایل‌های آپلودشده کاربران{" "}
+                <code dir="ltr" className="mx-0.5 rounded bg-zinc-800 px-1.5 py-0.5 font-mono text-[11px] text-emerald-300">
+                  public/uploads/
+                </code>
+                ، متغیرهای محیطی{" "}
+                <code dir="ltr" className="mx-0.5 rounded bg-zinc-800 px-1.5 py-0.5 font-mono text-[11px] text-emerald-300">
+                  .env
+                </code>{" "}
+                و کلید نشست‌ها دست‌نخورده باقی می‌مانند. همچنین اسکیمای دیتابیس فقط به‌صورت افزایشی همگام‌سازی می‌شود.
+              </>
+            ) : (
+              "Before every update, an automatic snapshot is saved while db/custom.db, public/uploads/, .env, and session secrets are strictly preserved. Prisma migrations run additively."
+            )}
           </p>
-          <div className="font-mono text-[11px] text-emerald-800 pt-1" dir="ltr">
+          <div
+            className="inline-block rounded bg-zinc-950/70 border border-zinc-800 px-2.5 py-1 font-mono text-[11px] text-emerald-300"
+            dir="ltr"
+          >
             Protected paths: {cfg.preserveDataPaths}
           </div>
         </div>
