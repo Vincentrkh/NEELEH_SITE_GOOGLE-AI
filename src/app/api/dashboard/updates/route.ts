@@ -91,7 +91,10 @@ export async function PUT(req: NextRequest) {
   };
 
   const rawPat = (body.gitToken ?? "").trim();
-  if (rawPat) {
+  if ((body as { clearToken?: boolean }).clearToken || authMethod === "PUBLIC") {
+    updateData.encryptedToken = null;
+    updateData.tokenHint = null;
+  } else if (rawPat) {
     updateData.encryptedToken = encryptSecret(rawPat);
     updateData.tokenHint = maskSecret(rawPat);
   }

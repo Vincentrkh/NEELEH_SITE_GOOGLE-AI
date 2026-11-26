@@ -60,7 +60,7 @@ export async function getSafeUpdateStatus() {
       repoUrl: cfg.repoUrl,
       branch: cfg.branch,
       authMethod: cfg.authMethod,
-      hasToken: Boolean(cfg.encryptedToken || process.env.GITHUB_UPDATE_TOKEN?.trim()),
+      hasToken: Boolean(cfg.encryptedToken),
       tokenHint: cfg.tokenHint,
       hasWebhookSecret: Boolean(cfg.encryptedWebhookKey || process.env.UPDATE_WEBHOOK_SECRET?.trim()),
       webhookHint: cfg.webhookHint,
@@ -134,8 +134,9 @@ export async function checkForRemoteUpdates(params: {
     return { ok: false, error: "نام شاخه (Branch) نامعتبر است.", errorEn: "Invalid branch name." };
   }
 
-  const token =
-    decryptSecret(cfg.encryptedToken) || process.env.GITHUB_UPDATE_TOKEN?.trim() || "";
+  const dbToken = cfg.authMethod === "PAT" ? decryptSecret(cfg.encryptedToken) : "";
+  const envToken = cfg.authMethod === "PAT" && !dbToken ? (process.env.GITHUB_UPDATE_TOKEN?.trim() || "") : "";
+  const token = dbToken || envToken;
 
   let remoteSha = "";
   let commitMessage = "";
@@ -148,7 +149,7 @@ export async function checkForRemoteUpdates(params: {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 15_000);
       try {
-        const res = await fetch(apiUrl, {
+        let res = await fetch(apiUrl, {
           headers: {
             Accept: "application/vnd.github+json",
             "User-Agent": "neeleh-academy-updater",
@@ -156,8 +157,23 @@ export async function checkForRemoteUpdates(params: {
           },
           signal: controller.signal,
         });
+        if (res.status === 401 && !dbToken && envToken) {
+          // Stale container env token should never block public GitHub repositories
+          res = await fetch(apiUrl, {
+            headers: {
+              Accept: "application/vnd.github+json",
+              "User-Agent": "neeleh-academy-updater",
+            },
+            signal: controller.signal,
+          });
+        }
         if (!res.ok) {
           const msg = await res.text().catch(() => "");
+          if (res.status === 401) {
+            throw new Error(
+              "توکن دسترسی گیت (PAT) نامعتبر یا منقضی شده است (GitHub 401). اگر مخزن عمومی است، نوع دسترسی را روی «عمومی (Public HTTPS)» بگذارید؛ در غیر این صورت توکن جدید معتبر وارد کنید.",
+            );
+          }
           throw new Error(`GitHub API HTTP ${res.status}: ${msg.slice(0, 140)}`);
         }
         const json = (await res.json()) as {
@@ -304,8 +320,9 @@ export async function applyZeroDowntimeUpdate(params: {
   if (!repoCheck.ok) {
     return { ok: false, error: repoCheck.error, errorEn: repoCheck.error };
   }
-  const token =
-    decryptSecret(freshCfg.encryptedToken) || process.env.GITHUB_UPDATE_TOKEN?.trim() || "";
+  const dbToken = freshCfg.authMethod === "PAT" ? decryptSecret(freshCfg.encryptedToken) : "";
+  const envToken = freshCfg.authMethod === "PAT" && !dbToken ? (process.env.GITHUB_UPDATE_TOKEN?.trim() || "") : "";
+  const token = dbToken || envToken;
 
   await db.systemUpdateConfig.update({
     where: { id: freshCfg.id },
@@ -348,7 +365,7 @@ export async function applyZeroDowntimeUpdate(params: {
       try {
         if (repoCheck.githubOwnerRepo) {
           const tarUrl = `https://api.github.com/repos/${repoCheck.githubOwnerRepo}/tarball/${encodeURIComponent(freshCfg.branch)}`;
-          const res = await fetch(tarUrl, {
+          let res = await fetch(tarUrl, {
             headers: {
               Accept: "application/vnd.github+json",
               "User-Agent": "neeleh-academy-updater",
@@ -356,7 +373,21 @@ export async function applyZeroDowntimeUpdate(params: {
             },
             signal: controller.signal,
           });
+          if (res.status === 401 && !dbToken && envToken) {
+            res = await fetch(tarUrl, {
+              headers: {
+                Accept: "application/vnd.github+json",
+                "User-Agent": "neeleh-academy-updater",
+              },
+              signal: controller.signal,
+            });
+          }
           if (!res.ok) {
+            if (res.status === 401) {
+              throw new Error(
+                "توکن دسترسی گیت (PAT) نامعتبر یا منقضی شده است (GitHub 401).",
+              );
+            }
             throw new Error(`Tarball download failed with HTTP ${res.status}`);
           }
           const buf = Buffer.from(await res.arrayBuffer());

@@ -118,7 +118,8 @@ export function SystemUpdaterPanel({
         repoUrl,
         branch,
         authMethod,
-        gitToken: gitToken.trim() || undefined,
+        gitToken: authMethod === "PAT" ? gitToken.trim() || undefined : undefined,
+        clearToken: authMethod === "PUBLIC",
         webhookSecret: webhookSecret.trim() || undefined,
         autoCheckEnabled,
         autoApplyEnabled,
@@ -481,17 +482,27 @@ export function SystemUpdaterPanel({
           <div className="grid gap-1.5">
             <label className="text-xs text-muted-foreground">
               {fa
-                ? `توکن دسترسی گیت${cfg.hasToken ? ` (${cfg.tokenHint || "ذخیره‌شده"})` : ""}`
-                : `Git PAT Token${cfg.hasToken ? ` (${cfg.tokenHint || "Saved"})` : ""}`}
+                ? `توکن دسترسی گیت${authMethod === "PAT" && cfg.hasToken ? ` (${cfg.tokenHint || "ذخیره‌شده"})` : ""}`
+                : `Git PAT Token${authMethod === "PAT" && cfg.hasToken ? ` (${cfg.tokenHint || "Saved"})` : ""}`}
             </label>
             <input
               type="password"
+              name="neeleh_git_pat"
               dir="ltr"
-              autoComplete="new-password"
-              value={gitToken}
+              autoComplete="off"
+              disabled={authMethod === "PUBLIC"}
+              value={authMethod === "PUBLIC" ? "" : gitToken}
               onChange={(e) => setGitToken(e.target.value)}
-              placeholder={cfg.hasToken ? "••••••••" : "ghp_..."}
-              className="min-h-[42px] rounded-md border border-border bg-background px-3 text-xs outline-none focus:border-foreground"
+              placeholder={
+                authMethod === "PUBLIC"
+                  ? fa
+                    ? "در حالت عمومی نیازی نیست"
+                    : "Not needed for Public repo"
+                  : cfg.hasToken
+                    ? "••••••••"
+                    : "ghp_... / github_pat_..."
+              }
+              className="min-h-[42px] rounded-md border border-border bg-background px-3 text-xs outline-none focus:border-foreground disabled:opacity-55 disabled:bg-secondary/30"
             />
           </div>
 
