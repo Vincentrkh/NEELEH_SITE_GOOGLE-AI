@@ -5,6 +5,7 @@ import { useLang } from "@/components/language-provider";
 import { useToast } from "@/hooks/use-toast";
 import { localeDateTime, localeNumber } from "@/lib/format";
 import {
+  AlertTriangle,
   Archive,
   CheckCircle2,
   Copy,
@@ -94,40 +95,64 @@ export function SystemUpdaterPanel({
 
   const [saving, setSaving] = useState(false);
   const [busyAction, setBusyAction] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<{
+    kind: "success" | "error";
+    text: string;
+  } | null>(null);
+
+  const hasUnsavedConfig =
+    repoUrl.trim() !== data.config.repoUrl ||
+    branch.trim() !== data.config.branch ||
+    authMethod !== (data.config.authMethod === "PAT" ? "PAT" : "PUBLIC") ||
+    Boolean(gitToken.trim()) ||
+    Boolean(webhookSecret.trim()) ||
+    autoCheckEnabled !== data.config.autoCheckEnabled ||
+    autoApplyEnabled !== data.config.autoApplyEnabled ||
+    checkIntervalMins !== data.config.checkIntervalMins;
+
+  async function persistConfig(): Promise<boolean> {
+    const res = await fetch("/api/dashboard/updates/", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        repoUrl,
+        branch,
+        authMethod,
+        gitToken: gitToken.trim() || undefined,
+        webhookSecret: webhookSecret.trim() || undefined,
+        autoCheckEnabled,
+        autoApplyEnabled,
+        checkIntervalMins,
+      }),
+    });
+    const json = (await res.json()) as UpdateStatusPayload & { error?: string };
+    if (!res.ok) {
+      const errText = json.error || (fa ? "خطا در ذخیره تنظیمات مخزن" : "Failed to save repository config");
+      setFeedback({ kind: "error", text: errText });
+      toast({
+        title: fa ? "خطا در ذخیره تنظیمات مخزن" : "Failed to save repository config",
+        description: json.error,
+        variant: "destructive",
+      });
+      return false;
+    }
+    setData(json);
+    setGitToken("");
+    setWebhookSecret("");
+    return true;
+  }
 
   async function saveConfig(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
+    setFeedback(null);
     try {
-      const res = await fetch("/api/dashboard/updates/", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          repoUrl,
-          branch,
-          authMethod,
-          gitToken: gitToken.trim() || undefined,
-          webhookSecret: webhookSecret.trim() || undefined,
-          autoCheckEnabled,
-          autoApplyEnabled,
-          checkIntervalMins,
-        }),
-      });
-      const json = (await res.json()) as UpdateStatusPayload & { error?: string };
-      if (!res.ok) {
-        toast({
-          title: fa ? "خطا در ذخیره تنظیمات مخزن" : "Failed to save repository config",
-          description: json.error,
-          variant: "destructive",
-        });
-        return;
+      const ok = await persistConfig();
+      if (ok) {
+        const msg = fa ? "تنظیمات مخزن و بروزرسانی ذخیره شد" : "Update settings saved";
+        setFeedback({ kind: "success", text: msg });
+        toast({ title: msg });
       }
-      setData(json);
-      setGitToken("");
-      setWebhookSecret("");
-      toast({
-        title: fa ? "تنظیمات مخزن و بروزرسانی ذخیره شد" : "Update settings saved",
-      });
     } finally {
       setSaving(false);
     }
@@ -139,7 +164,13 @@ export function SystemUpdaterPanel({
   ) {
     const key = logId ? `${action}:${logId}` : action;
     setBusyAction(key);
+    setFeedback(null);
     try {
+      if ((action === "check" || action === "apply") && hasUnsavedConfig) {
+        const savedOk = await persistConfig();
+        if (!savedOk) return;
+      }
+
       const res = await fetch("/api/dashboard/updates/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -149,6 +180,9 @@ export function SystemUpdaterPanel({
         ok?: boolean;
         message?: string;
         error?: string;
+        updateAvailable?: boolean;
+        remoteCommit?: string;
+        toCommit?: string;
       };
       if (json.config && json.logs) {
         setData({
@@ -158,30 +192,39 @@ export function SystemUpdaterPanel({
         });
       }
       if (!res.ok) {
+        const errText = json.error || json.message || (fa ? "عملیات بروزرسانی انجام نشد" : "Update action failed");
+        setFeedback({ kind: "error", text: errText });
         toast({
           title: fa ? "عملیات بروزرسانی انجام نشد" : "Update action failed",
-          description: json.error || json.message,
+          description: errText,
           variant: "destructive",
         });
         return;
       }
-      toast({
-        title:
-          action === "check"
+      const successTitle =
+        action === "check"
+          ? json.updateAvailable
             ? fa
-              ? "بررسی مخزن تکمیل شد"
-              : "Repository checked"
-            : action === "apply"
+              ? `بروزرسانی جدید یافت شد (${json.remoteCommit ?? ""})`
+              : `Update available (${json.remoteCommit ?? ""})`
+            : fa
+              ? `بررسی انجام شد — سیستم با مخزن همگام است (${json.remoteCommit ?? ""})`
+              : "Checked — repository is up to date"
+          : action === "apply"
+            ? fa
+              ? `بروزرسانی امن انجام شد (${json.toCommit ?? ""})`
+              : "Zero-downtime update applied"
+            : action === "snapshot"
               ? fa
-                ? "بروزرسانی امن انجام شد"
-                : "Zero-downtime update applied"
-              : action === "snapshot"
-                ? fa
-                  ? "نسخه پشتیبان فوری ایجاد شد"
-                  : "Instant snapshot created"
-                : fa
-                  ? "دیتابیس با موفقیت بازگردانی شد"
-                  : "Database restored from snapshot",
+                ? "نسخه پشتیبان فوری ایجاد شد"
+                : "Instant snapshot created"
+              : fa
+                ? "دیتابیس با موفقیت بازگردانی شد"
+                : "Database restored from snapshot";
+
+      setFeedback({ kind: "success", text: successTitle });
+      toast({
+        title: successTitle,
         description: json.message,
       });
     } finally {
@@ -304,48 +347,78 @@ export function SystemUpdaterPanel({
       </div>
 
       {/* Primary Action Bar */}
-      <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card p-4">
-        <button
-          type="button"
-          disabled={Boolean(busyAction)}
-          onClick={() => void runAction("check")}
-          className="inline-flex min-h-[42px] items-center gap-2 rounded-md border border-border bg-background px-4 text-xs font-medium hover:bg-secondary disabled:opacity-50"
-        >
-          {busyAction === "check" ? (
-            <Loader2 className="size-4 animate-spin" />
-          ) : (
-            <RefreshCw className="size-4" />
-          )}
-          <span>{fa ? "بررسی بروزرسانی از مخزن" : "Check for Updates"}</span>
-        </button>
+      <div className="rounded-lg border border-border bg-card p-4 space-y-3">
+        {!repoUrl.trim() && (
+          <div className="rounded-md border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs text-amber-900 flex items-center gap-2">
+            <AlertTriangle className="size-4 text-amber-700 shrink-0" />
+            <span>
+              {fa
+                ? "هنوز آدرس مخزن گیت تنظیم نشده است؛ آدرس HTTPS مخزن خود را در فرم زیر وارد کرده و بررسی یا بروزرسانی را بزنید."
+                : "No Git repository URL configured yet. Enter your HTTPS repo URL in the form below before checking or applying updates."}
+            </span>
+          </div>
+        )}
 
-        <button
-          type="button"
-          disabled={Boolean(busyAction)}
-          onClick={() => void runAction("apply")}
-          className="inline-flex min-h-[42px] items-center gap-2 rounded-md bg-foreground text-background px-5 text-xs font-medium hover:opacity-90 disabled:opacity-50"
-        >
-          {busyAction === "apply" ? (
-            <Loader2 className="size-4 animate-spin" />
-          ) : (
-            <Rocket className="size-4" />
-          )}
-          <span>{fa ? "بروزرسانی امن و بدون قطعی" : "Apply Zero-Downtime Update"}</span>
-        </button>
+        {feedback && (
+          <div
+            className={`rounded-md border px-3.5 py-2.5 text-xs flex items-center gap-2 ${
+              feedback.kind === "error"
+                ? "border-rose-200 bg-rose-50 text-rose-900"
+                : "border-emerald-200 bg-emerald-50 text-emerald-900"
+            }`}
+          >
+            {feedback.kind === "error" ? (
+              <XCircle className="size-4 text-rose-700 shrink-0" />
+            ) : (
+              <CheckCircle2 className="size-4 text-emerald-700 shrink-0" />
+            )}
+            <span>{feedback.text}</span>
+          </div>
+        )}
 
-        <button
-          type="button"
-          disabled={Boolean(busyAction)}
-          onClick={() => void runAction("snapshot")}
-          className="inline-flex min-h-[42px] items-center gap-2 rounded-md border border-border bg-background px-4 text-xs font-medium hover:bg-secondary disabled:opacity-50"
-        >
-          {busyAction === "snapshot" ? (
-            <Loader2 className="size-4 animate-spin" />
-          ) : (
-            <Archive className="size-4" />
-          )}
-          <span>{fa ? "گرفتن بکاپ فوری" : "Create Snapshot Now"}</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            disabled={Boolean(busyAction)}
+            onClick={() => void runAction("check")}
+            className="inline-flex min-h-[42px] items-center gap-2 rounded-md border border-border bg-background px-4 text-xs font-medium hover:bg-secondary disabled:opacity-50"
+          >
+            {busyAction === "check" ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <RefreshCw className="size-4" />
+            )}
+            <span>{fa ? "بررسی بروزرسانی از مخزن" : "Check for Updates"}</span>
+          </button>
+
+          <button
+            type="button"
+            disabled={Boolean(busyAction)}
+            onClick={() => void runAction("apply")}
+            className="inline-flex min-h-[42px] items-center gap-2 rounded-md bg-foreground text-background px-5 text-xs font-medium hover:opacity-90 disabled:opacity-50"
+          >
+            {busyAction === "apply" ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Rocket className="size-4" />
+            )}
+            <span>{fa ? "بروزرسانی امن و بدون قطعی" : "Apply Zero-Downtime Update"}</span>
+          </button>
+
+          <button
+            type="button"
+            disabled={Boolean(busyAction)}
+            onClick={() => void runAction("snapshot")}
+            className="inline-flex min-h-[42px] items-center gap-2 rounded-md border border-border bg-background px-4 text-xs font-medium hover:bg-secondary disabled:opacity-50"
+          >
+            {busyAction === "snapshot" ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Archive className="size-4" />
+            )}
+            <span>{fa ? "گرفتن بکاپ فوری" : "Create Snapshot Now"}</span>
+          </button>
+        </div>
       </div>
 
       {/* Repository & Periodic Schedule Form */}

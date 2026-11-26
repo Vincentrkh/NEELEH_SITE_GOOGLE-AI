@@ -338,71 +338,93 @@ export async function applyZeroDowntimeUpdate(params: {
         ["checkout", "-B", freshCfg.branch, "FETCH_HEAD"],
         { cwd: root, env, timeout: 30_000 },
       );
-    } else if (repoCheck.githubOwnerRepo) {
-      // Step 2B: Staging tarball sync (container-friendly, zero DB/uploads loss)
+    } else {
+      // Step 2B: Staging sync (container-friendly, zero DB/uploads loss)
       const stagingDir = path.join(os.tmpdir(), `neeleh-stage-${Date.now()}`);
-      await fs.promises.mkdir(stagingDir, { recursive: true });
-      const tarUrl = `https://api.github.com/repos/${repoCheck.githubOwnerRepo}/tarball/${encodeURIComponent(freshCfg.branch)}`;
+      const extractDir = path.join(stagingDir, "extracted");
+      await fs.promises.mkdir(extractDir, { recursive: true });
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 45_000);
       try {
-        const res = await fetch(tarUrl, {
-          headers: {
-            Accept: "application/vnd.github+json",
-            "User-Agent": "neeleh-academy-updater",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          signal: controller.signal,
-        });
-        if (!res.ok) {
-          throw new Error(`Tarball download failed with HTTP ${res.status}`);
+        if (repoCheck.githubOwnerRepo) {
+          const tarUrl = `https://api.github.com/repos/${repoCheck.githubOwnerRepo}/tarball/${encodeURIComponent(freshCfg.branch)}`;
+          const res = await fetch(tarUrl, {
+            headers: {
+              Accept: "application/vnd.github+json",
+              "User-Agent": "neeleh-academy-updater",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            signal: controller.signal,
+          });
+          if (!res.ok) {
+            throw new Error(`Tarball download failed with HTTP ${res.status}`);
+          }
+          const buf = Buffer.from(await res.arrayBuffer());
+          const tarFile = path.join(stagingDir, "release.tar.gz");
+          await fs.promises.writeFile(tarFile, buf);
+          await execFileAsync(
+            "/bin/tar",
+            ["-xzf", tarFile, "-C", extractDir, "--strip-components=1"],
+            { timeout: 30_000 },
+          );
+        } else {
+          // Generic HTTPS Git remote (GitLab / Gitea / Bitbucket / Self-hosted)
+          const env: NodeJS.ProcessEnv = {
+            ...process.env,
+            GIT_TERMINAL_PROMPT: "0",
+          };
+          if (token) {
+            const basic = Buffer.from(`x-access-token:${token}`).toString("base64");
+            env.GIT_CONFIG_COUNT = "1";
+            env.GIT_CONFIG_KEY_0 = "http.extraHeader";
+            env.GIT_CONFIG_VALUE_0 = `Authorization: Basic ${basic}`;
+          }
+          await execFileAsync(
+            "/usr/bin/git",
+            ["clone", "--depth", "1", "--branch", freshCfg.branch, repoCheck.normalized, extractDir],
+            { env, timeout: 60_000 },
+          );
         }
-        const buf = Buffer.from(await res.arrayBuffer());
-        const tarFile = path.join(stagingDir, "release.tar.gz");
-        await fs.promises.writeFile(tarFile, buf);
-        const extractDir = path.join(stagingDir, "extracted");
-        await fs.promises.mkdir(extractDir, { recursive: true });
-        await execFileAsync(
-          "/bin/tar",
-          ["-xzf", tarFile, "-C", extractDir, "--strip-components=1"],
-          { timeout: 30_000 },
-        );
 
         // Only sync non-data project directories if repo actually contains full Next.js app (has src/ & package.json)
         const hasAppCode =
           fs.existsSync(path.join(extractDir, "package.json")) &&
           fs.existsSync(path.join(extractDir, "src"));
 
-        if (hasAppCode) {
-          const protectedTop = new Set([
-            "db",
-            ".env",
-            ".env.local",
-            ".next",
-            "node_modules",
-            "backups",
-            ".git",
-            ".aistudio",
-          ]);
-          const entries = await fs.promises.readdir(extractDir, { withFileTypes: true });
-          for (const entry of entries) {
-            if (protectedTop.has(entry.name)) continue;
-            const srcPath = path.join(extractDir, entry.name);
-            const dstPath = path.join(root, entry.name);
-            if (entry.name === "public") {
-              // Merge public/ while keeping public/uploads/ untouched
-              await fs.promises.mkdir(dstPath, { recursive: true });
-              const pubEntries = await fs.promises.readdir(srcPath, { withFileTypes: true });
-              for (const pe of pubEntries) {
-                if (pe.name === "uploads") continue;
-                await fs.promises.cp(path.join(srcPath, pe.name), path.join(dstPath, pe.name), {
-                  recursive: true,
-                  force: true,
-                });
-              }
-            } else {
-              await fs.promises.cp(srcPath, dstPath, { recursive: true, force: true });
+        if (!hasAppCode) {
+          throw new Error(
+            "مخزن گیت فاقد فایل‌های اصلی پروژه (src و package.json) است؛ برای جلوگیری از آسیب به سایت، جایگزینی انجام نشد.",
+          );
+        }
+
+        const protectedTop = new Set([
+          "db",
+          ".env",
+          ".env.local",
+          ".next",
+          "node_modules",
+          "backups",
+          ".git",
+          ".aistudio",
+        ]);
+        const entries = await fs.promises.readdir(extractDir, { withFileTypes: true });
+        for (const entry of entries) {
+          if (protectedTop.has(entry.name)) continue;
+          const srcPath = path.join(extractDir, entry.name);
+          const dstPath = path.join(root, entry.name);
+          if (entry.name === "public") {
+            // Merge public/ while keeping public/uploads/ untouched
+            await fs.promises.mkdir(dstPath, { recursive: true });
+            const pubEntries = await fs.promises.readdir(srcPath, { withFileTypes: true });
+            for (const pe of pubEntries) {
+              if (pe.name === "uploads") continue;
+              await fs.promises.cp(path.join(srcPath, pe.name), path.join(dstPath, pe.name), {
+                recursive: true,
+                force: true,
+              });
             }
+          } else {
+            await fs.promises.cp(srcPath, dstPath, { recursive: true, force: true });
           }
         }
       } finally {
@@ -522,5 +544,45 @@ export async function rollbackDatabaseFromLog(logId: string, actorId: string) {
     return { ok: false, error: msg, errorEn: msg };
   } finally {
     await fs.promises.rm(extractTmp, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
+const globalForScheduler = globalThis as unknown as {
+  __neelehUpdateSchedulerStarted?: boolean;
+  __neelehUpdateCheckInFlight?: boolean;
+};
+
+/**
+ * In-process periodic update scheduler: checks every 60s whether `autoCheckEnabled`
+ * is due according to `checkIntervalMins`, and auto-applies when `autoApplyEnabled` is true.
+ */
+export function startPeriodicUpdateScheduler() {
+  if (globalForScheduler.__neelehUpdateSchedulerStarted) return;
+  globalForScheduler.__neelehUpdateSchedulerStarted = true;
+
+  const timer = setInterval(async () => {
+    if (globalForScheduler.__neelehUpdateCheckInFlight) return;
+    globalForScheduler.__neelehUpdateCheckInFlight = true;
+    try {
+      const cfg = await ensureUpdateConfig();
+      if (!cfg.autoCheckEnabled || !cfg.repoUrl.trim()) return;
+      const intervalMs = Math.max(15, cfg.checkIntervalMins) * 60_000;
+      const lastMs = cfg.lastCheckedAt?.getTime() ?? 0;
+      if (Date.now() - lastMs < intervalMs) return;
+
+      if (cfg.autoApplyEnabled) {
+        await applyZeroDowntimeUpdate({ trigger: "SCHEDULED" });
+      } else {
+        await checkForRemoteUpdates({ trigger: "SCHEDULED" });
+      }
+    } catch {
+      // Never crash background scheduler loop
+    } finally {
+      globalForScheduler.__neelehUpdateCheckInFlight = false;
+    }
+  }, 60_000);
+
+  if (typeof timer.unref === "function") {
+    timer.unref();
   }
 }
