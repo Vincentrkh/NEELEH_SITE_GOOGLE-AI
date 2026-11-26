@@ -45,6 +45,8 @@ model User {
   coursesTaught    Course[]                  @relation("CourseInstructor")
   sentMessages     StudentMessage[]          @relation("MessageSender")
   receivedMessages StudentMessageRecipient[] @relation("MessageStudent")
+  examAttempts     ExamAttempt[]
+  certificates     CourseCertificate[]
 }
 
 /// نقش‌ها — پویا. ادمین می‌تواند نقش جدید بسازد و دسترسی اختصاص دهد.
@@ -160,6 +162,8 @@ model Course {
   sessions      CourseSession[]
   registrations Registration[]
   messages      StudentMessage[]
+  exam          CourseExam?
+  certificates  CourseCertificate[]
 
   @@index([tier])
   @@index([featured])
@@ -240,6 +244,7 @@ model Registration {
   sessionsPerWeek   Int?
   sessionHours      Float?
   autoAttendance    Boolean   @default(true)
+  examUnlocked      Boolean   @default(false)
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
@@ -249,6 +254,8 @@ model Registration {
   attendance        Attendance[]
   attendanceDays    StudentAttendanceDay[]
   messageRecipients StudentMessageRecipient[]
+  examAttempts      ExamAttempt[]
+  certificate       CourseCertificate?
 
   @@unique([studentId, courseId])
   @@index([courseId])
@@ -691,4 +698,183 @@ model AuditLog {
   @@index([entityType, entityId])
   @@index([createdAt])
 }
+
+// ─────────────────────── اتصال امن هوش‌های مصنوعی ───────────────────────
+
+model AIProviderConnection {
+  id           String    @id @default(cuid())
+  key          String    @unique // "gemini-server" | custom slug
+  name         String
+  nameEn       String?
+  providerType String    @default("GEMINI_ENV") // GEMINI_ENV | OPENAI_COMPAT | OLLAMA_LOCAL | CUSTOM_REST
+  baseUrl      String?
+  defaultModel String    @default("gemini-4-hydrogen")
+  encryptedKey String?   // AES-256-GCM encrypted API key (never sent to client)
+  keyHint      String?   // Masked suffix e.g. "••••48ab"
+  enabled      Boolean   @default(true)
+  lastTestedAt DateTime?
+  lastStatus   String?   // OK | ERROR | UNTESTED
+  lastError    String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  sectionBindings AISectionBinding[]
+}
+
+model AISectionBinding {
+  id           String   @id @default(cuid())
+  sectionKey   String   @unique // assistant | course_guide | live_inspector | exam_generator | content_writer
+  labelFa      String
+  labelEn      String
+  descriptionFa String  @default("")
+  descriptionEn String  @default("")
+  providerId   String?
+  modelOverride String?
+  systemPrompt String?
+  enabled      Boolean  @default(true)
+  requireConsent Boolean @default(false)
+  updatedAt    DateTime @updatedAt
+
+  provider AIProviderConnection? @relation(fields: [providerId], references: [id], onDelete: SetNull)
+}
+
+// ─────────────────────── بروزرسانی دوره‌ای و همگام‌سازی گیت ───────────────────────
+
+model SystemUpdateConfig {
+  id                  String    @id @default(cuid())
+  key                 String    @unique @default("default")
+  repoUrl             String    @default("")
+  branch              String    @default("main")
+  authMethod          String    @default("PUBLIC") // PUBLIC | PAT
+  encryptedToken      String?
+  tokenHint           String?
+  encryptedWebhookKey String?
+  webhookHint         String?
+  autoCheckEnabled    Boolean   @default(false)
+  autoApplyEnabled    Boolean   @default(false)
+  checkIntervalMins   Int       @default(60)
+  preserveDataPaths   String    @default("db/custom.db,public/uploads,.env,db/.session_secret")
+  currentCommit       String?
+  remoteCommit        String?
+  remoteCommitMessage String?
+  remoteCommitAuthor  String?
+  remoteCommitDate    DateTime?
+  pendingUpdatesCount Int       @default(0)
+  lastCheckedAt       DateTime?
+  lastUpdatedAt       DateTime?
+  lastStatus          String    @default("IDLE") // IDLE | UP_TO_DATE | UPDATE_AVAILABLE | UPDATING | ERROR
+  lastError           String?
+  updatedAt           DateTime  @updatedAt
+}
+
+model SystemUpdateLog {
+  id           String   @id @default(cuid())
+  trigger      String   @default("MANUAL") // MANUAL | SCHEDULED | WEBHOOK | ROLLBACK
+  status       String   @default("SUCCESS") // SUCCESS | UP_TO_DATE | FAILED | ROLLED_BACK
+  fromCommit   String?
+  toCommit     String?
+  backupPath   String?
+  summary      String   @default("")
+  errorMessage String?
+  durationMs   Int      @default(0)
+  actorId      String?
+  createdAt    DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+// ─────────────────────── آزمون پایان دوره و گواهینامه ───────────────────────
+
+model CourseExam {
+  id                      String   @id @default(cuid())
+  courseId                String   @unique
+  title                   String
+  titleEn                 String?
+  description             String   @default("")
+  descriptionEn           String   @default("")
+  passingScore            Int      @default(70)
+  durationMins            Int      @default(20)
+  maxAttempts             Int      @default(3)
+  requireCourseCompletion Boolean  @default(true)
+  minProgressPercent      Int      @default(70)
+  isPublished             Boolean  @default(true)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  course       Course              @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  questions    ExamQuestion[]
+  attempts     ExamAttempt[]
+  certificates CourseCertificate[]
+}
+
+model ExamQuestion {
+  id              String   @id @default(cuid())
+  examId          String
+  order           Int      @default(0)
+  prompt          String
+  promptEn        String?
+  optionsJson     String   @default("[]") // JSON array of { id, text, textEn? }
+  correctOptionId String
+  explanation     String   @default("")
+  explanationEn   String   @default("")
+  points          Int      @default(1)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  exam CourseExam @relation(fields: [examId], references: [id], onDelete: Cascade)
+
+  @@index([examId, order])
+}
+
+model ExamAttempt {
+  id             String    @id @default(cuid())
+  examId         String
+  registrationId String
+  studentId      String
+  attemptNumber  Int       @default(1)
+  answersJson    String    @default("{}")
+  scorePercent   Int       @default(0)
+  earnedPoints   Int       @default(0)
+  totalPoints    Int       @default(0)
+  passed         Boolean   @default(false)
+  startedAt      DateTime  @default(now())
+  submittedAt    DateTime  @default(now())
+
+  exam         CourseExam         @relation(fields: [examId], references: [id], onDelete: Cascade)
+  registration Registration       @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  student      User               @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  certificate  CourseCertificate?
+
+  @@index([registrationId])
+  @@index([studentId, examId])
+}
+
+model CourseCertificate {
+  id               String    @id @default(cuid())
+  certificateCode  String    @unique
+  registrationId   String    @unique
+  studentId        String
+  courseId         String
+  examId           String
+  attemptId        String    @unique
+  studentName      String
+  studentNameEn    String?
+  courseTitle      String
+  courseTitleEn    String?
+  scorePercent     Int       @default(100)
+  durationHrs      Int       @default(0)
+  verificationHash String
+  issuedAt         DateTime  @default(now())
+  revokedAt        DateTime?
+
+  registration Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  student      User         @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  course       Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  exam         CourseExam   @relation(fields: [examId], references: [id], onDelete: Cascade)
+  attempt      ExamAttempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+
+  @@index([studentId])
+  @@index([courseId])
+}
+
 

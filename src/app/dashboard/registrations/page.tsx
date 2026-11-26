@@ -62,6 +62,22 @@ export default async function DashboardRegistrationsPage() {
             durationHrs: true,
           },
         },
+        examAttempts: {
+          orderBy: { submittedAt: "desc" },
+          take: 1,
+          select: {
+            scorePercent: true,
+            passed: true,
+            submittedAt: true,
+          },
+        },
+        certificate: {
+          select: {
+            certificateCode: true,
+            scorePercent: true,
+            revokedAt: true,
+          },
+        },
       },
     }),
     db.course.findMany({
@@ -104,6 +120,11 @@ export default async function DashboardRegistrationsPage() {
         status: r.status as "PENDING" | "CONFIRMED" | "CANCELLED",
         paymentStatus: r.paymentStatus as "PAID" | "UNPAID",
         note: r.note,
+        examUnlocked: r.examUnlocked,
+        latestExamScore: r.examAttempts[0]?.scorePercent ?? null,
+        latestExamPassed: r.examAttempts[0]?.passed ?? null,
+        certificateCode:
+          r.certificate && !r.certificate.revokedAt ? r.certificate.certificateCode : null,
         createdAt: r.createdAt.toISOString(),
         student: r.student,
         course: r.course,

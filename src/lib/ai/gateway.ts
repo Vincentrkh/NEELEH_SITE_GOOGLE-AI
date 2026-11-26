@@ -1,6 +1,6 @@
-import { GoogleGenAI, ThinkingLevel } from "@google/genai";
 import { db } from "@/lib/db";
 import { sanitizeRetrievedContext } from "@/lib/domain/academy-rules";
+import { executeSectionAI } from "@/lib/ai/connections";
 
 export type AiGenerateResult =
   | { ok: true; text: string; model: string; latencyMs: number }
@@ -90,117 +90,34 @@ export async function runCourseGuideAI(params: {
   actorId?: string | null;
   contextFacts: string;
 }): Promise<AiGenerateResult> {
-  const cleanPrompt = sanitizeRetrievedContext(params.prompt);
-  if (!cleanPrompt || cleanPrompt.length < 2) {
+  const systemInstruction =
+    params.lang === "fa"
+      ? `شما راهنمای رسمی دوره‌های آکادمی معماری نیله هستید. فقط بر اساس فهرست واقعی دوره‌ها و سرفصل‌های زیر پاسخ دهید. هرگز قیمت، زمان‌بندی، گواهینامه یا پیش‌نیازی را که در داده‌ها نیست اختراع نکنید. پاسخ را کوتاه، ساختاریافته و کاربردی بنویسید و لینک نسبی دوره‌ها (/courses/[slug]) را پیشنهاد دهید.`
+      : `You are the official course advisor for Neeleh Architecture Academy. Ground every recommendation strictly in the provided course catalog facts below. Never invent prices, dates, certificates, or outcomes not present in the facts. Keep responses concise, structured, and cite exact /courses/[slug] paths.`;
+
+  const res = await executeSectionAI({
+    sectionKey: "course_guide",
+    prompt: `CATALOG FACTS (trusted reference data):\n${sanitizeRetrievedContext(
+      params.contextFacts,
+    )}\n\nUSER QUESTION:\n${sanitizeRetrievedContext(params.prompt)}`,
+    systemInstruction,
+    lang: params.lang,
+    actorId: params.actorId ?? null,
+  });
+
+  if (!res.ok) {
     return {
       ok: false,
-      code: "INVALID_INPUT",
-      error: params.lang === "fa" ? "لطفاً پرسش خود را بنویسید." : "Please enter your question.",
-      status: 400,
+      code: res.code === "DISABLED" ? "CONFIG_REQUIRED" : res.code,
+      error: res.error,
+      status: res.status,
     };
   }
 
-  const startedAt = Date.now();
-  if (!isGeminiConfigured()) {
-    await db.aIUsageLedger
-      .create({
-        data: {
-          actorId: params.actorId ?? null,
-          feature: "course_guide",
-          provider: "gemini",
-          model: DEFAULT_GEMINI_MODEL,
-          status: "CONFIG_REQUIRED",
-          latencyMs: Date.now() - startedAt,
-          errorCode: "GEMINI_API_KEY_MISSING",
-        },
-      })
-      .catch(() => {});
-
-    return {
-      ok: false,
-      code: "CONFIG_REQUIRED",
-      error:
-        params.lang === "fa"
-          ? "کلید API هوش مصنوعی روی سرور تنظیم نشده است. لطفاً از بخش کاتالوگ دوره‌ها یا فرم مشاوره استفاده کنید."
-          : "AI service key is not configured on the server yet. Please browse the Course Catalog or request a free consultation.",
-      status: 503,
-    };
-  }
-
-  try {
-    const ai = new GoogleGenAI({
-      apiKey: process.env.GEMINI_API_KEY,
-      httpOptions: {
-        headers: {
-          "User-Agent": "aistudio-build",
-        },
-      },
-    });
-
-    const systemInstruction =
-      params.lang === "fa"
-        ? `شما راهنمای رسمی دوره‌های آکادمی معماری نیله هستید. فقط بر اساس فهرست واقعی دوره‌ها و سرفصل‌های زیر پاسخ دهید. هرگز قیمت، زمان‌بندی، گواهینامه یا پیش‌نیازی را که در داده‌ها نیست اختراع نکنید. پاسخ را کوتاه، ساختاریافته و کاربردی بنویسید و لینک نسبی دوره‌ها (/courses/[slug]) را پیشنهاد دهید.`
-        : `You are the official course advisor for Neeleh Architecture Academy. Ground every recommendation strictly in the provided course catalog facts below. Never invent prices, dates, certificates, or outcomes not present in the facts. Keep responses concise, structured, and cite exact /courses/[slug] paths.`;
-
-    const response = await ai.models.generateContent({
-      model: DEFAULT_GEMINI_MODEL,
-      contents: `CATALOG FACTS (trusted reference data):\n${sanitizeRetrievedContext(
-        params.contextFacts
-      )}\n\nUSER QUESTION:\n${cleanPrompt}`,
-      config: {
-        systemInstruction,
-        thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
-      },
-    });
-
-    const text = (response.text ?? "").trim();
-    const latencyMs = Date.now() - startedAt;
-
-    await db.aIUsageLedger
-      .create({
-        data: {
-          actorId: params.actorId ?? null,
-          feature: "course_guide",
-          provider: "gemini",
-          model: DEFAULT_GEMINI_MODEL,
-          status: "SUCCESS",
-          latencyMs,
-        },
-      })
-      .catch(() => {});
-
-    return {
-      ok: true,
-      text: text || (params.lang === "fa" ? "پاسخی دریافت نشد." : "No response returned."),
-      model: DEFAULT_GEMINI_MODEL,
-      latencyMs,
-    };
-  } catch (err) {
-    const latencyMs = Date.now() - startedAt;
-    const msg = err instanceof Error ? err.message : "Upstream AI error";
-    await db.aIUsageLedger
-      .create({
-        data: {
-          actorId: params.actorId ?? null,
-          feature: "course_guide",
-          provider: "gemini",
-          model: DEFAULT_GEMINI_MODEL,
-          status: "ERROR",
-          latencyMs,
-          errorCode: msg.slice(0, 120),
-        },
-      })
-      .catch(() => {});
-
-    console.error("[ai-gateway]", msg);
-    return {
-      ok: false,
-      code: "UPSTREAM_ERROR",
-      error:
-        params.lang === "fa"
-          ? "خطا در ارتباط با سرویس هوش مصنوعی. لطفاً دوباره تلاش کنید."
-          : "AI service temporarily unavailable. Please try again.",
-      status: 502,
-    };
-  }
+  return {
+    ok: true,
+    text: res.text || (params.lang === "fa" ? "پاسخی دریافت نشد." : "No response returned."),
+    model: res.model,
+    latencyMs: res.latencyMs,
+  };
 }

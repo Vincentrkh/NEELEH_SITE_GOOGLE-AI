@@ -188,6 +188,10 @@ export function permissionForPath(path: string): string | null {
     comments: PERMISSIONS.COMMENT_MODERATE,
     pages: PERMISSIONS.PAGE_MANAGE,
     automation: PERMISSIONS.AUTOMATION_MANAGE,
+    exams: PERMISSIONS.COURSE_UPDATE,
+    assistant: PERMISSIONS.AUTOMATION_MANAGE,
+    "ai-connections": PERMISSIONS.SETTING_MANAGE,
+    updates: PERMISSIONS.SETTING_MANAGE,
   };
   return map[section] ?? null;
 }

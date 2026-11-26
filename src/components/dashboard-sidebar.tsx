@@ -23,6 +23,10 @@ import {
   Globe,
   Crosshair,
   Languages,
+  Award,
+  Bot,
+  Cpu,
+  RefreshCw,
 } from "lucide-react";
 import { useLang } from "@/components/language-provider";
 import { BrandLogoGraphic } from "@/components/brand-logo";
@@ -67,6 +71,14 @@ const NAV: NavItem[] = [
     label: "دوره‌ها",
     labelEn: "Courses",
     icon: BookOpen,
+    group: "content",
+  },
+  {
+    href: "/dashboard/exams",
+    label: "آزمون و گواهینامه",
+    labelEn: "Exams & Certificates",
+    icon: Award,
+    roles: ["ADMIN", "EDITOR"],
     group: "content",
   },
   {
@@ -130,6 +142,30 @@ const NAV: NavItem[] = [
     label: "کره ذرات هرو",
     labelEn: "Hero Sphere",
     icon: Globe,
+    roles: ["ADMIN"],
+    group: "system",
+  },
+  {
+    href: "/dashboard/assistant",
+    label: "دستیار هوشمند",
+    labelEn: "Smart Assistant",
+    icon: Bot,
+    roles: ["ADMIN", "EDITOR"],
+    group: "system",
+  },
+  {
+    href: "/dashboard/ai-connections",
+    label: "اتصال هوش مصنوعی",
+    labelEn: "AI Connections",
+    icon: Cpu,
+    roles: ["ADMIN"],
+    group: "system",
+  },
+  {
+    href: "/dashboard/updates",
+    label: "بروزرسانی و گیت",
+    labelEn: "Git Updates",
+    icon: RefreshCw,
     roles: ["ADMIN"],
     group: "system",
   },

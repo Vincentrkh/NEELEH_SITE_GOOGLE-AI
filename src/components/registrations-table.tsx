@@ -45,6 +45,9 @@ import {
   Save,
   Clock,
   Users,
+  Award,
+  Lock,
+  Unlock,
 } from "lucide-react";
 
 export type EnrichedRegistration = {
@@ -53,6 +56,10 @@ export type EnrichedRegistration = {
   status: "PENDING" | "CONFIRMED" | "CANCELLED";
   paymentStatus: "PAID" | "UNPAID";
   note: string | null;
+  examUnlocked?: boolean;
+  latestExamScore?: number | null;
+  latestExamPassed?: boolean | null;
+  certificateCode?: string | null;
   createdAt: string;
   student: {
     id: string;
@@ -262,7 +269,7 @@ export function RegistrationsTable({
 
   async function updateReg(
     id: string,
-    patch: { status?: string; paymentStatus?: string; note?: string },
+    patch: { status?: string; paymentStatus?: string; note?: string; examUnlocked?: boolean },
   ) {
     setBusyId(id);
     try {
@@ -298,6 +305,7 @@ export function RegistrationsTable({
                   ? { paymentStatus: patch.paymentStatus as EnrichedRegistration["paymentStatus"] }
                   : {}),
                 ...(patch.note !== undefined ? { note: patch.note } : {}),
+                ...(patch.examUnlocked !== undefined ? { examUnlocked: patch.examUnlocked } : {}),
                 ...(freshGantt !== undefined ? { gantt: freshGantt } : {}),
               }
             : r,
@@ -1024,20 +1032,81 @@ export function RegistrationsTable({
                                   }
                                   className="flex-1 bg-background border border-border rounded-md p-2.5 text-xs outline-none focus:border-foreground resize-y"
                                 />
-                                {canUpdate && (
-                                  <button
-                                    type="button"
-                                    disabled={busyId === r.id}
-                                    onClick={() => updateReg(r.id, { note: noteDraft })}
-                                    className="inline-flex items-center gap-1 self-start rounded-md border border-border bg-background px-3 min-h-[36px] text-xs font-medium hover:bg-secondary whitespace-nowrap"
-                                  >
-                                    <Save className="size-3.5" />
-                                    <span>{fa ? "ذخیره" : "Save"}</span>
-                                  </button>
-                                )}
+                                  {canUpdate && (
+                                    <button
+                                      type="button"
+                                      disabled={busyId === r.id}
+                                      onClick={() => updateReg(r.id, { note: noteDraft })}
+                                      className="inline-flex items-center gap-1 self-start rounded-md border border-border bg-background px-3 min-h-[36px] text-xs font-medium hover:bg-secondary whitespace-nowrap"
+                                    >
+                                      <Save className="size-3.5" />
+                                      <span>{fa ? "ذخیره" : "Save"}</span>
+                                    </button>
+                                  )}
+                                </div>
+
+                                {/* Exam & Certificate Controls */}
+                                <div className="pt-2 border-t border-border flex flex-wrap items-center justify-between gap-2 text-xs">
+                                  <div className="flex flex-wrap items-center gap-2 text-muted-foreground">
+                                    <Award className="size-3.5 shrink-0" />
+                                    <span>
+                                      {r.certificateCode
+                                        ? fa
+                                          ? `گواهینامه صادر شد (${r.certificateCode})`
+                                          : `Certified (${r.certificateCode})`
+                                        : r.latestExamScore != null
+                                          ? `${fa ? "آخرین نمره آزمون:" : "Latest exam:"} ${localeNumber(lang, r.latestExamScore)}${fa ? "٪" : "%"}`
+                                          : r.examUnlocked
+                                            ? fa
+                                              ? "آزمون توسط مدیر باز شده است"
+                                              : "Exam manually unlocked"
+                                            : fa
+                                              ? "باز شدن آزمون با پیشرفت یا اجازه مدیر"
+                                              : "Exam gated by progress"}
+                                    </span>
+                                  </div>
+
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    {r.certificateCode && (
+                                      <Link
+                                        href={`/certificates/${encodeURIComponent(r.certificateCode)}/`}
+                                        target="_blank"
+                                        className="inline-flex min-h-[32px] items-center gap-1 rounded border border-emerald-300 bg-emerald-50 px-2.5 text-[11px] font-medium text-emerald-800 hover:bg-emerald-100"
+                                      >
+                                        <span>{fa ? "گواهینامه" : "Certificate"}</span>
+                                        <ExternalLink className="size-3" />
+                                      </Link>
+                                    )}
+                                    {canUpdate && r.status === "CONFIRMED" && (
+                                      <button
+                                        type="button"
+                                        disabled={busyId === r.id}
+                                        onClick={() =>
+                                          updateReg(r.id, { examUnlocked: !r.examUnlocked })
+                                        }
+                                        className={`inline-flex min-h-[32px] items-center gap-1 rounded border px-2.5 text-[11px] font-medium transition-colors ${
+                                          r.examUnlocked
+                                            ? "border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100"
+                                            : "border-border bg-background hover:bg-secondary"
+                                        }`}
+                                      >
+                                        {r.examUnlocked ? (
+                                          <>
+                                            <Lock className="size-3" />
+                                            <span>{fa ? "قفل آزمون" : "Lock Exam"}</span>
+                                          </>
+                                        ) : (
+                                          <>
+                                            <Unlock className="size-3" />
+                                            <span>{fa ? "باز کردن قفل آزمون" : "Unlock Exam"}</span>
+                                          </>
+                                        )}
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
                               </div>
                             </div>
-                          </div>
 
                           {/* GitHub-Style Progress & Attendance Gantt */}
                           {r.gantt && (

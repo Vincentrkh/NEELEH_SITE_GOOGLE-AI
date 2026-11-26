@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { GoogleGenAI, ThinkingLevel, Type } from "@google/genai";
+import { Type } from "@google/genai";
 import { requirePermission } from "@/lib/auth";
-import { db } from "@/lib/db";
 import { apiMsg } from "@/lib/i18n";
-import { DEFAULT_GEMINI_MODEL, isGeminiConfigured } from "@/lib/ai/gateway";
+import { executeSectionAI } from "@/lib/ai/connections";
 import { sanitizeCssProp, sanitizeCssValue, sanitizeCustomDeclarations } from "@/lib/live-overrides";
 
 type InspectorAiRequest = {
@@ -68,43 +67,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const startedAt = Date.now();
-  if (!isGeminiConfigured()) {
-    await db.aIUsageLedger
-      .create({
-        data: {
-          actorId: user.id,
-          feature: "live_inspector_ai",
-          provider: "gemini",
-          model: DEFAULT_GEMINI_MODEL,
-          status: "CONFIG_REQUIRED",
-          latencyMs: Date.now() - startedAt,
-          errorCode: "GEMINI_API_KEY_MISSING",
-        },
-      })
-      .catch(() => {});
-
-    return NextResponse.json(
-      {
-        error:
-          lang === "fa"
-            ? "کلید API هوش مصنوعی روی سرور تنظیم نشده است. می‌توانید تغییرات ظاهری و متنی را از تب تنظیمات آبجکت اعمال کنید."
-            : "AI API key is not configured on the server yet. You can still use the manual style & text controls.",
-      },
-      { status: 503 },
-    );
-  }
-
   try {
-    const ai = new GoogleGenAI({
-      apiKey: process.env.GEMINI_API_KEY,
-      httpOptions: {
-        headers: {
-          "User-Agent": "aistudio-build",
-        },
-      },
-    });
-
     const el = body.element ?? {};
     const contextPayload = {
       pathname: body.pathname ?? "/",
@@ -147,56 +110,55 @@ Rules:
 4. Only return "globePatch" items if isHeroScene is true AND the admin asked to modify the 3D Hero particle sphere, glass material, lighting, particles, 3D text/model scale/offset, or Hero background gradient. Allowed numeric/boolean/string globe keys: sz (1.5..9), spx (-9..9), spy (-6..6), spz (-6..8), ga (0..1), gp (0.8..6), gk (0..1.5), gsp (0..2.5), gsh (8..160), gin (0..2), ghd (0..2), ghr (0..360), gfr (0..1), gc1 (#hex), gc2 (#hex), gcm ("true"/"false"), ac (#hex), ps (0.3..3), fs (0.3..2.5), ms (0.3..2.5), tpx/tpy/mpx/mpy (-4..4), bm ("0"|"1"|"2"), b1 (#hex), b2 (#hex), ba (0..360), fd (0..1), fh (5..100), ob (0..1), os (8..60), oc1 (#hex), oc2 (#hex), texts.
 5. Write "explanation" concisely in ${lang === "fa" ? "Persian (فارسی)" : "English"} summarizing what will change.`;
 
-    const response = await ai.models.generateContent({
-      model: DEFAULT_GEMINI_MODEL,
-      contents: `SELECTED ELEMENT CONTEXT:\n${JSON.stringify(contextPayload, null, 2)}\n\nADMIN INSTRUCTION:\n${prompt}`,
-      config: {
-        systemInstruction,
-        thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            explanation: {
-              type: Type.STRING,
-              description: "Concise summary of the changes in the requested UI language.",
-            },
-            shouldUpdateText: {
-              type: Type.BOOLEAN,
-              description: "True only when the element text content itself should be updated.",
-            },
-            text: {
-              type: Type.STRING,
-              description: "Replacement plain text if shouldUpdateText is true.",
-            },
-            hidden: {
-              type: Type.BOOLEAN,
-              description: "True only if the admin requested hiding the element.",
-            },
-            styles: {
-              type: Type.ARRAY,
-              description: "List of CSS property and value updates.",
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  property: { type: Type.STRING },
-                  value: { type: Type.STRING },
-                },
+    const aiRes = await executeSectionAI({
+      sectionKey: "live_inspector",
+      prompt: `SELECTED ELEMENT CONTEXT:\n${JSON.stringify(contextPayload, null, 2)}\n\nADMIN INSTRUCTION:\n${prompt}`,
+      systemInstruction,
+      lang,
+      actorId: user.id,
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          explanation: {
+            type: Type.STRING,
+            description: "Concise summary of the changes in the requested UI language.",
+          },
+          shouldUpdateText: {
+            type: Type.BOOLEAN,
+            description: "True only when the element text content itself should be updated.",
+          },
+          text: {
+            type: Type.STRING,
+            description: "Replacement plain text if shouldUpdateText is true.",
+          },
+          hidden: {
+            type: Type.BOOLEAN,
+            description: "True only if the admin requested hiding the element.",
+          },
+          styles: {
+            type: Type.ARRAY,
+            description: "List of CSS property and value updates.",
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                property: { type: Type.STRING },
+                value: { type: Type.STRING },
               },
             },
-            customCss: {
-              type: Type.STRING,
-              description: "Optional extra CSS declarations.",
-            },
-            globePatch: {
-              type: Type.ARRAY,
-              description: "Optional Hero 3D sphere settings updates when isHeroScene is true.",
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  key: { type: Type.STRING },
-                  value: { type: Type.STRING },
-                },
+          },
+          customCss: {
+            type: Type.STRING,
+            description: "Optional extra CSS declarations.",
+          },
+          globePatch: {
+            type: Type.ARRAY,
+            description: "Optional Hero 3D sphere settings updates when isHeroScene is true.",
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                key: { type: Type.STRING },
+                value: { type: Type.STRING },
               },
             },
           },
@@ -204,7 +166,11 @@ Rules:
       },
     });
 
-    const rawJson = (response.text ?? "{}").trim();
+    if (!aiRes.ok) {
+      return NextResponse.json({ error: aiRes.error }, { status: aiRes.status });
+    }
+
+    const rawJson = aiRes.text.replace(/^```json\s*/i, "").replace(/```$/i, "").trim() || "{}";
     const parsed = JSON.parse(rawJson) as ParsedAiResponse;
 
     const styles: Record<string, string> = {};
@@ -233,20 +199,6 @@ Rules:
       }
     }
 
-    const latencyMs = Date.now() - startedAt;
-    await db.aIUsageLedger
-      .create({
-        data: {
-          actorId: user.id,
-          feature: "live_inspector_ai",
-          provider: "gemini",
-          model: DEFAULT_GEMINI_MODEL,
-          status: "SUCCESS",
-          latencyMs,
-        },
-      })
-      .catch(() => {});
-
     return NextResponse.json({
       ok: true,
       explanation:
@@ -259,26 +211,11 @@ Rules:
         ? { customCss: sanitizeCustomDeclarations(parsed.customCss) }
         : {}),
       ...(Object.keys(globePatch).length > 0 ? { globePatch } : {}),
-      model: DEFAULT_GEMINI_MODEL,
-      latencyMs,
+      model: aiRes.model,
+      latencyMs: aiRes.latencyMs,
     });
   } catch (err) {
-    const latencyMs = Date.now() - startedAt;
     const msg = err instanceof Error ? err.message : "Upstream AI error";
-    await db.aIUsageLedger
-      .create({
-        data: {
-          actorId: user.id,
-          feature: "live_inspector_ai",
-          provider: "gemini",
-          model: DEFAULT_GEMINI_MODEL,
-          status: "ERROR",
-          latencyMs,
-          errorCode: msg.slice(0, 120),
-        },
-      })
-      .catch(() => {});
-
     console.error("[inspector-ai]", msg);
     return NextResponse.json(
       {

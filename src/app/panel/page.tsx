@@ -14,13 +14,17 @@ import {
 import { getServerLang } from "@/lib/i18n";
 import { pickString } from "@/lib/content";
 import { syncAndGetRegistrationGantt } from "@/lib/attendance-sync";
+import { ensureDefaultCourseExams } from "@/lib/exam-seed";
+import { evaluateExamEligibility } from "@/lib/exam-rules";
 import {
   ArrowRight,
+  Award,
   BookOpen,
   Download,
   CheckCircle2,
   Clock,
   FileText,
+  Lock,
   Mail,
 } from "lucide-react";
 import { ProfileEditor } from "@/components/profile-editor";
@@ -40,6 +44,8 @@ export default async function PanelPage() {
   const fa = lang === "fa";
   const user = await getCurrentUser();
   if (!user) redirect("/login/?next=/panel/");
+
+  await ensureDefaultCourseExams();
 
   const [dbProfile, registrations, totalCount, inboxItems] = await Promise.all([
     db.user.findUnique({
@@ -81,9 +87,35 @@ export default async function PanelPage() {
               orderBy: { createdAt: "desc" },
             },
             sessions: { select: { id: true, title: true, date: true, order: true }, orderBy: { order: "asc" } },
+            exam: {
+              select: {
+                id: true,
+                title: true,
+                titleEn: true,
+                passingScore: true,
+                durationMins: true,
+                maxAttempts: true,
+                minProgressPercent: true,
+                requireCourseCompletion: true,
+                isPublished: true,
+                _count: { select: { questions: true } },
+              },
+            },
           },
         },
         attendance: { select: { sessionId: true, present: true } },
+        examAttempts: {
+          orderBy: { submittedAt: "desc" },
+          select: { id: true, scorePercent: true, passed: true, submittedAt: true },
+        },
+        certificate: {
+          select: {
+            certificateCode: true,
+            scorePercent: true,
+            issuedAt: true,
+            revokedAt: true,
+          },
+        },
       },
     }),
     db.registration.count({
@@ -356,6 +388,98 @@ export default async function PanelPage() {
                             </ul>
                           </div>
                         )}
+
+                        {r.status === "CONFIRMED" && r.course.exam && (() => {
+                          const exam = r.course.exam;
+                          const activeCert =
+                            r.certificate && !r.certificate.revokedAt ? r.certificate : null;
+                          const eligibility = evaluateExamEligibility({
+                            registrationStatus: r.status,
+                            isPublished: exam.isPublished,
+                            questionCount: exam._count.questions,
+                            progressPercent: gantt?.stats.progressPercent ?? 0,
+                            minProgressPercent: exam.minProgressPercent,
+                            requireCourseCompletion: exam.requireCourseCompletion,
+                            examUnlocked: r.examUnlocked,
+                            attemptsUsed: r.examAttempts.length,
+                            maxAttempts: exam.maxAttempts,
+                            hasCertificate: Boolean(activeCert),
+                          });
+                          const bestScore = r.examAttempts.reduce(
+                            (max, a) => Math.max(max, a.scorePercent),
+                            0,
+                          );
+
+                          return (
+                            <div className="p-4 sm:p-5 border-t border-border bg-card flex flex-wrap items-center justify-between gap-4">
+                              <div className="space-y-1 min-w-0">
+                                <div className="flex items-center gap-2 text-xs font-semibold">
+                                  <Award
+                                    className={`size-4 shrink-0 ${
+                                      activeCert ? "text-emerald-600" : "text-muted-foreground"
+                                    }`}
+                                  />
+                                  <span>
+                                    {fa ? "آزمون پایان دوره و گواهینامه" : "Final Exam & Certificate"}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-muted-foreground leading-relaxed">
+                                  {activeCert
+                                    ? fa
+                                      ? `قبول شدید با نمره ${localeNumber(lang, activeCert.scorePercent)}٪ · کد گواهینامه: ${activeCert.certificateCode}`
+                                      : `Passed with ${activeCert.scorePercent}% · Certificate ${activeCert.certificateCode}`
+                                    : eligibility.eligible
+                                      ? fa
+                                        ? `آزمون آماده است (${localeNumber(lang, exam._count.questions)} سوال · ${localeNumber(lang, exam.durationMins)} دقیقه · حدنصاب ${localeNumber(lang, exam.passingScore)}٪)`
+                                        : `Ready (${exam._count.questions} questions · ${exam.durationMins} min · pass ${exam.passingScore}%)`
+                                      : eligibility.reason === "PROGRESS_TOO_LOW"
+                                        ? fa
+                                          ? `پس از رسیدن پیشرفت گانت به ${localeNumber(lang, exam.minProgressPercent)}٪ (یا باز شدن توسط مدیر) فعال می‌شود.`
+                                          : `Unlocks at ${exam.minProgressPercent}% Gantt progress (or admin unlock).`
+                                        : r.examAttempts.length > 0
+                                          ? fa
+                                            ? `بهترین نمره ثبت‌شده: ${localeNumber(lang, bestScore)}٪`
+                                            : `Best attempt score: ${bestScore}%`
+                                          : fa
+                                            ? "در انتظار فعال‌سازی آزمون"
+                                            : "Awaiting activation"}
+                                </p>
+                              </div>
+
+                              <div className="flex flex-wrap items-center gap-2">
+                                {activeCert ? (
+                                  <Link
+                                    href={`/certificates/${encodeURIComponent(activeCert.certificateCode)}/`}
+                                    className="inline-flex min-h-[40px] items-center gap-2 rounded-md bg-emerald-700 text-white px-4 text-xs font-medium hover:bg-emerald-800 transition-colors whitespace-nowrap"
+                                  >
+                                    <Award className="size-3.5" />
+                                    <span>{fa ? "مشاهده و چاپ گواهینامه" : "View Certificate"}</span>
+                                  </Link>
+                                ) : (
+                                  <Link
+                                    href={`/panel/exam/${encodeURIComponent(r.id)}/`}
+                                    className={`inline-flex min-h-[40px] items-center gap-2 rounded-md px-4 text-xs font-medium transition-colors whitespace-nowrap ${
+                                      eligibility.eligible
+                                        ? "bg-foreground text-background hover:opacity-90"
+                                        : "border border-border bg-secondary/50 text-foreground hover:bg-secondary"
+                                    }`}
+                                  >
+                                    {!eligibility.eligible && <Lock className="size-3.5" />}
+                                    <span>
+                                      {eligibility.eligible
+                                        ? fa
+                                          ? "ورود به آزمون پایان دوره"
+                                          : "Take Final Exam"
+                                        : fa
+                                          ? "جزئیات و وضعیت آزمون"
+                                          : "Exam Details"}
+                                    </span>
+                                  </Link>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })()}
 
                         {r.status === "PENDING" && (
                           <div className="p-4 bg-amber-50 border-t border-amber-200">

@@ -25,6 +25,7 @@ export async function PATCH(
     sessionsPerWeek?: number | null;
     sessionHours?: number | null;
     autoAttendance?: boolean;
+    examUnlocked?: boolean;
   };
   try {
     body = (await req.json()) as typeof body;
@@ -87,6 +88,9 @@ export async function PATCH(
   }
   if (body.autoAttendance !== undefined) {
     data.autoAttendance = Boolean(body.autoAttendance);
+  }
+  if (body.examUnlocked !== undefined) {
+    data.examUnlocked = Boolean(body.examUnlocked);
   }
 
   const updated = await db.registration.update({

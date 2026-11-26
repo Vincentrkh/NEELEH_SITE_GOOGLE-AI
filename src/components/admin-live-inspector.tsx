@@ -1321,7 +1321,7 @@ export function AdminLiveInspector({
 
       {/* 3. Admin Discreet Floating Launcher Bar */}
       <div
-        className="fixed bottom-14 md:bottom-3 right-3 md:right-4 z-[3050] flex items-center gap-1.5 border border-neutral-300 bg-white/95 px-2 py-1.5 shadow-lg backdrop-blur-md text-neutral-900"
+        className="print:hidden fixed bottom-14 md:bottom-3 right-3 md:right-4 z-[3050] flex items-center gap-1.5 border border-neutral-300 bg-white/95 px-2 py-1.5 shadow-lg backdrop-blur-md text-neutral-900"
         style={{ fontSize: 12 }}
       >
         <button
