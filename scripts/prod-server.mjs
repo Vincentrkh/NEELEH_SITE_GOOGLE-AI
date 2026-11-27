@@ -4,7 +4,9 @@
  * Works cross-platform (Windows PowerShell, Linux, macOS, Docker) without PM2.
  *
  * - Listens on PORT (default 3000) and proxies traffic to an internal Next.js worker.
- * - Watches `db/.reload-trigger` (written after Git/updater builds a new `.next/standalone`).
+ * - Uses dual build slots (`.next` <-> `.next-blue`) so live updates build into the
+ *   inactive directory with zero Windows file locks and zero broken chunks.
+ * - Watches `db/.reload-trigger` (written after Git/updater builds the inactive slot).
  * - Starts the new worker on a fresh loopback port, waits for healthcheck pass,
  *   atomically swaps live traffic to the new worker (0ms downtime), and drains the old worker.
  */
@@ -19,8 +21,32 @@ const publicPort = Number(process.env.PORT || 3000);
 const publicHost = process.env.HOSTNAME || "0.0.0.0";
 const dbDir = path.join(root, "db");
 const supervisorMetaPath = path.join(dbDir, ".supervisor.json");
+const activeDistPath = path.join(dbDir, ".active-dist");
 const reloadTriggerPath = path.join(dbDir, ".reload-trigger");
-const isWin = process.platform === "win32";
+const ALLOWED_DISTS = new Set([".next", ".next-blue"]);
+
+function hasBuild(distDir) {
+  return (
+    fs.existsSync(path.join(root, distDir, "BUILD_ID")) ||
+    fs.existsSync(path.join(root, distDir, "standalone", "server.js"))
+  );
+}
+
+function resolveInitialDist() {
+  try {
+    if (fs.existsSync(activeDistPath)) {
+      const saved = fs.readFileSync(activeDistPath, "utf8").trim();
+      if (ALLOWED_DISTS.has(saved) && hasBuild(saved)) {
+        return saved;
+      }
+    }
+  } catch {
+    // ignore
+  }
+  if (hasBuild(".next")) return ".next";
+  if (hasBuild(".next-blue")) return ".next-blue";
+  return ".next";
+}
 
 function getFreePort() {
   return new Promise((resolve, reject) => {
@@ -69,37 +95,63 @@ function waitForWorkerHealthy(port, timeoutMs = 45_000) {
   });
 }
 
-function spawnNextWorker(port) {
-  const standaloneEntry = path.join(root, ".next", "standalone", "server.js");
-  const hasStandalone = fs.existsSync(standaloneEntry);
+function resolveStandaloneDbUrl() {
+  const current = process.env.DATABASE_URL || "";
+  if (current.startsWith("postgres")) return current;
+  return `file:${path.join(root, "db", "custom.db")}`;
+}
+
+function spawnNextWorker(port, distDir) {
+  const nextBin = path.join(root, "node_modules", "next", "dist", "bin", "next");
+  const standaloneEntry = path.join(root, distDir, "standalone", "server.js");
 
   const env = {
     ...process.env,
     NODE_ENV: "production",
     PORT: String(port),
     HOSTNAME: "127.0.0.1",
+    NEXT_DIST_DIR: distDir,
+    NEELEH_APP_ROOT: root,
     NEELEH_SUPERVISOR_PID: String(process.pid),
   };
 
-  if (hasStandalone) {
-    return spawn(process.execPath, [standaloneEntry], {
+  if (fs.existsSync(nextBin) && fs.existsSync(path.join(root, distDir, "BUILD_ID"))) {
+    return spawn(process.execPath, [nextBin, "start", "-p", String(port), "-H", "127.0.0.1"], {
       cwd: root,
       env,
+      windowsHide: true,
       stdio: "inherit",
     });
   }
 
-  return spawn(isWin ? "npx.cmd" : "npx", ["next", "start", "-p", String(port), "-H", "127.0.0.1"], {
-    cwd: root,
-    env,
-    shell: isWin,
-    stdio: "inherit",
-  });
+  if (fs.existsSync(standaloneEntry)) {
+    return spawn(process.execPath, [standaloneEntry], {
+      cwd: root,
+      env: {
+        ...env,
+        DATABASE_URL: resolveStandaloneDbUrl(),
+      },
+      windowsHide: true,
+      stdio: "inherit",
+    });
+  }
+
+  return spawn(
+    process.execPath,
+    [nextBin, "start", "-p", String(port), "-H", "127.0.0.1"],
+    {
+      cwd: root,
+      env,
+      windowsHide: true,
+      stdio: "inherit",
+    },
+  );
 }
 
-function writeSupervisorMeta(workerPort) {
+function writeSupervisorMeta(workerPort, activeDist) {
   try {
     fs.mkdirSync(dbDir, { recursive: true });
+    fs.writeFileSync(activeDistPath, activeDist, "utf8");
     fs.writeFileSync(
       supervisorMetaPath,
       JSON.stringify(
@@ -107,6 +159,7 @@ function writeSupervisorMeta(workerPort) {
           pid: process.pid,
           publicPort,
           workerPort,
+          activeDist,
           updatedAt: new Date().toISOString(),
         },
         null,
@@ -132,7 +185,8 @@ function cleanupSupervisorMeta() {
   }
 }
 
-let activeWorker = null; // { child, port }
+let activeDist = resolveInitialDist();
+let activeWorker = null; // { child, port, distDir }
 let reloading = false;
 let shuttingDown = false;
 let lastTriggerStamp = "";
@@ -145,13 +199,20 @@ try {
   // ignore
 }
 
-async function startNewWorkerAndSwap(reason) {
+async function startNewWorkerAndSwap(reason, requestedDist) {
   if (reloading || shuttingDown) return;
   reloading = true;
+  const targetDist =
+    requestedDist && ALLOWED_DISTS.has(requestedDist) && hasBuild(requestedDist)
+      ? requestedDist
+      : activeDist;
+
   try {
     const nextPort = await getFreePort();
-    console.log(`[prod-server] Starting worker on 127.0.0.1:${nextPort} (${reason})...`);
-    const child = spawnNextWorker(nextPort);
+    console.log(
+      `[prod-server] Starting worker on 127.0.0.1:${nextPort} (dist=${targetDist}, reason=${reason})...`,
+    );
+    const child = spawnNextWorker(nextPort, targetDist);
 
     let earlyExited = false;
     child.once("exit", (code) => {
@@ -159,7 +220,7 @@ async function startNewWorkerAndSwap(reason) {
       if (activeWorker && activeWorker.child === child && !shuttingDown) {
         console.error(`[prod-server] Active worker exited unexpectedly (code=${code}); restarting...`);
         activeWorker = null;
-        setTimeout(() => void startNewWorkerAndSwap("crash-recovery"), 500);
+        setTimeout(() => void startNewWorkerAndSwap("crash-recovery", activeDist), 500);
       }
     });
 
@@ -169,9 +230,10 @@ async function startNewWorkerAndSwap(reason) {
     }
 
     const previous = activeWorker;
-    activeWorker = { child, port: nextPort };
-    writeSupervisorMeta(nextPort);
-    console.log(`[prod-server] Live traffic switched seamlessly to port ${nextPort}.`);
+    activeWorker = { child, port: nextPort, distDir: targetDist };
+    activeDist = targetDist;
+    writeSupervisorMeta(nextPort, activeDist);
+    console.log(`[prod-server] Live traffic switched seamlessly to port ${nextPort} (${activeDist}).`);
 
     if (previous && previous.child && !previous.child.killed) {
       setTimeout(() => {
@@ -254,7 +316,16 @@ function checkReloadTrigger() {
     const raw = fs.readFileSync(reloadTriggerPath, "utf8");
     if (raw && raw !== lastTriggerStamp) {
       lastTriggerStamp = raw;
-      void startNewWorkerAndSwap("reload-trigger");
+      let requestedDist = activeDist;
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed?.distDir && ALLOWED_DISTS.has(parsed.distDir)) {
+          requestedDist = parsed.distDir;
+        }
+      } catch {
+        // ignore parse error
+      }
+      void startNewWorkerAndSwap("reload-trigger", requestedDist);
     }
   } catch {
     // ignore
@@ -281,14 +352,16 @@ function shutdown(signal) {
 
 process.on("SIGINT", () => shutdown("SIGINT"));
 process.on("SIGTERM", () => shutdown("SIGTERM"));
-process.on("SIGHUP", () => void startNewWorkerAndSwap("SIGHUP"));
-process.on("SIGUSR2", () => void startNewWorkerAndSwap("SIGUSR2"));
+process.on("SIGHUP", () => void startNewWorkerAndSwap("SIGHUP", resolveInitialDist()));
+process.on("SIGUSR2", () => void startNewWorkerAndSwap("SIGUSR2", resolveInitialDist()));
 process.on("exit", cleanupSupervisorMeta);
 
-await startNewWorkerAndSwap("boot");
+await startNewWorkerAndSwap("boot", activeDist);
 
 server.listen(publicPort, publicHost, () => {
-  console.log(`[prod-server] Neeleh Academy listening on http://${publicHost}:${publicPort} (zero-downtime supervisor ready)`);
+  console.log(
+    `[prod-server] Neeleh Academy listening on http://${publicHost}:${publicPort} (dist=${activeDist}, zero-downtime supervisor ready)`,
+  );
 });
 
 const pollTimer = setInterval(checkReloadTrigger, 1_500);

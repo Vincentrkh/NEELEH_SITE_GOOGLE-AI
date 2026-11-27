@@ -196,6 +196,7 @@ export function SystemUpdaterPanel({
         changedFilesSample?: string[];
         needsRestart?: boolean;
         reloaded?: boolean;
+        reloadMethod?: string;
       };
       if (json.config && json.logs) {
         setData({
@@ -261,7 +262,13 @@ export function SystemUpdaterPanel({
         description: json.message,
       });
       if (action === "apply") {
-        router.refresh();
+        if (json.reloadMethod === "handoff" || json.reloadMethod === "supervisor") {
+          setTimeout(() => {
+            router.refresh();
+          }, 2600);
+        } else {
+          router.refresh();
+        }
       }
     } finally {
       setBusyAction(null);
@@ -414,8 +421,8 @@ export function SystemUpdaterPanel({
                           ? "محیط پیش‌نمایش Shared (Cloud Run)"
                           : "Shared Preview (Cloud Run)"
                         : fa
-                          ? "محیط تولید (نیاز به ری‌استارت دستی)"
-                          : "Production (Manual restart)"
+                          ? "محیط تولید (ریلود خودکار فعال)"
+                          : "Production (Auto-reload enabled)"
                   : fa
                     ? "محیط توسعه (اعمال آنی فایل‌ها)"
                     : "Development (Live sync)")}
@@ -426,18 +433,13 @@ export function SystemUpdaterPanel({
       {/* Primary Action Bar */}
       <div className="rounded-lg border border-border bg-card p-4 space-y-3">
         {data.environment.runtimeMode === "production" &&
-          !data.environment.hasPm2 &&
-          !data.environment.hasSupervisor && (
+          data.environment.isCloudRun && (
           <div className="rounded-md border border-amber-300 bg-zinc-50 dark:bg-zinc-900 px-3.5 py-2.5 text-xs text-amber-900 dark:text-amber-300 flex items-start gap-2 leading-relaxed">
             <AlertTriangle className="size-4 text-amber-600 shrink-0 mt-0.5" />
             <span>
-              {data.environment.isCloudRun
-                ? fa
-                  ? "توجه: سایت هم‌اکنون در محیط Shared App (Cloud Run) با بیلد ایستا اجرا می‌شود. بروزرسانی گیت فایل‌ها را همگام‌سازی و بیلد می‌کند، اما برای تغییر ترافیک زنده روی لینک Shared باید بعد از تغییر، دکمه Publish را بزنید یا سایت را با npm run start روی سرور خود اجرا کنید."
-                  : "Note: Running in Cloud Run shared preview mode. Git sync rebuilds locally, but live Cloud Run traffic requires re-publishing or running npm run start on your host."
-                : fa
-                  ? "توجه: سرور مستقیماً اجرا شده است و سوپروایزر رلود خودکار فعال نیست؛ برای رلود خودکار و بدون قطعی، سرور را یک‌بار با دستور npm run start راه‌اندازی کنید."
-                  : "Note: Server was started without the zero-downtime supervisor. Start with `npm run start` once to enable automatic zero-downtime reloads."}
+              {fa
+                ? "توجه: سایت هم‌اکنون در محیط Shared App (Cloud Run) با بیلد ایستا اجرا می‌شود. بروزرسانی گیت فایل‌ها را همگام‌سازی و بیلد می‌کند، اما برای تغییر ترافیک زنده روی لینک Shared باید بعد از تغییر، دکمه Publish را بزنید."
+                : "Note: Running in Cloud Run shared preview mode. Git sync rebuilds locally, but live Cloud Run traffic requires re-publishing."}
             </span>
           </div>
         )}

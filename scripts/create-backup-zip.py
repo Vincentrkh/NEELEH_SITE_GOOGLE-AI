@@ -16,6 +16,8 @@ PREFIX = "neeleh-academy"
 EXCLUDE_DIRS = {
     "node_modules",
     ".next",
+    ".next-blue",
+    ".next-live",
     ".git",
     ".aistudio",
     "backups",
@@ -34,6 +36,7 @@ EXCLUDE_REL_PATHS = {
     "db/.session_secret",
     "db/.supervisor.json",
     "db/.reload-trigger",
+    "db/.active-dist",
     "db/backups",
 }
 

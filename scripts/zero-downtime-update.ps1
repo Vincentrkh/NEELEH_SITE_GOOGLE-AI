@@ -61,14 +61,23 @@ try {
     npx prisma db push
     npx prisma generate
 
-    Write-Host "[neeleh-update] Building production bundle..."
+    $SupervisorMeta = Join-Path $AppDir "db\.supervisor.json"
+    $NextDist = ".next"
+    if (Test-Path $SupervisorMeta) {
+        try {
+            $MetaObj = Get-Content $SupervisorMeta -Raw | ConvertFrom-Json
+            if ($MetaObj.activeDist -eq ".next") { $NextDist = ".next-blue" }
+        } catch {}
+    }
+
+    Write-Host "[neeleh-update] Building production bundle into $NextDist..."
+    $env:NEXT_DIST_DIR = $NextDist
     npm run build
 
-    $SupervisorMeta = Join-Path $AppDir "db\.supervisor.json"
     if (Test-Path $SupervisorMeta) {
         $ReloadTrigger = Join-Path $AppDir "db\.reload-trigger"
-        @{ commit = $RemoteSha; triggeredAt = (Get-Date).ToString("o") } | ConvertTo-Json | Set-Content -Path $ReloadTrigger -Encoding UTF8
-        Write-Host "[neeleh-update] Triggered zero-downtime blue-green reload via prod-server supervisor."
+        @{ commit = $RemoteSha; distDir = $NextDist; triggeredAt = (Get-Date).ToString("o") } | ConvertTo-Json | Set-Content -Path $ReloadTrigger -Encoding UTF8
+        Write-Host "[neeleh-update] Triggered zero-downtime blue-green reload via prod-server supervisor ($NextDist)."
     } elseif (Get-Command pm2 -ErrorAction SilentlyContinue) {
         $Pm2App = if ($env:PM2_APP_NAME) { $env:PM2_APP_NAME } else { "neeleh" }
         pm2 reload $Pm2App --update-env

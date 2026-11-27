@@ -1,7 +1,20 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   output: "standalone",
+  outputFileTracingExcludes: {
+    "*": [
+      "./db/**",
+      "./public/uploads/**",
+      "./backups/**",
+      "./.env*",
+      "./.git/**",
+      "./.playwright-cli/**",
+      "./download/**",
+      "./.next-blue/**",
+    ],
+  },
   poweredByHeader: false,
   typescript: {
     ignoreBuildErrors: true,

@@ -1,5 +1,5 @@
 import crypto from "crypto";
-import { execFile } from "child_process";
+import { execFile, spawn } from "child_process";
 import { promisify } from "util";
 import fs from "fs";
 import os from "os";
@@ -15,26 +15,36 @@ const execFileAsync = promisify(execFile);
 
 export const UPDATE_BACKUP_DIR = path.join(os.tmpdir(), "neeleh-update-backups");
 
+function isAppRootCandidate(dir: string): boolean {
+  const parts = path.resolve(dir).split(path.sep);
+  if (parts.includes(".next") || parts.includes(".next-blue") || parts.includes(".next-live")) {
+    return false;
+  }
+  return (
+    fs.existsSync(path.join(dir, "package.json")) &&
+    fs.existsSync(path.join(dir, "src"))
+  );
+}
+
 /**
  * Resolves the true project root whether running via `next dev`, `next start`,
- * or `node .next/standalone/server.js`.
+ * or `.next/standalone/server.js` (which changes cwd to `.next/standalone`).
  */
 export function resolveAppRoot(): string {
-  const cwd = process.cwd();
-  if (
-    fs.existsSync(path.join(cwd, "package.json")) &&
-    fs.existsSync(path.join(cwd, "src"))
-  ) {
-    return cwd;
+  const envRoot = process.env.NEELEH_APP_ROOT?.trim();
+  if (envRoot && isAppRootCandidate(envRoot)) {
+    return path.resolve(envRoot);
   }
-  const parentTwo = path.resolve(cwd, "../..");
-  if (
-    fs.existsSync(path.join(parentTwo, "package.json")) &&
-    fs.existsSync(path.join(parentTwo, "src"))
-  ) {
-    return parentTwo;
+  let cur = process.cwd();
+  for (let i = 0; i < 5; i++) {
+    if (isAppRootCandidate(cur)) {
+      return cur;
+    }
+    const parent = path.dirname(cur);
+    if (parent === cur) break;
+    cur = parent;
   }
-  return cwd;
+  return process.cwd();
 }
 
 async function sha256File(filePath: string): Promise<string | null> {
@@ -144,19 +154,22 @@ export async function getSafeUpdateStatus() {
 
 const IS_WIN = process.platform === "win32";
 
+function readSupervisorMeta(root: string): { pid?: number; activeDist?: string } | null {
+  try {
+    const metaPath = path.join(root, "db", ".supervisor.json");
+    if (!fs.existsSync(metaPath)) return null;
+    return JSON.parse(fs.readFileSync(metaPath, "utf8")) as { pid?: number; activeDist?: string };
+  } catch {
+    return null;
+  }
+}
+
 function isSupervisorActive(root: string): boolean {
   const envPid = Number(process.env.NEELEH_SUPERVISOR_PID || 0);
   const candidates: number[] = [];
   if (envPid > 0) candidates.push(envPid);
-  try {
-    const metaPath = path.join(root, "db", ".supervisor.json");
-    if (fs.existsSync(metaPath)) {
-      const parsed = JSON.parse(fs.readFileSync(metaPath, "utf8")) as { pid?: number };
-      if (parsed.pid && parsed.pid > 0) candidates.push(parsed.pid);
-    }
-  } catch {
-    // ignore
-  }
+  const meta = readSupervisorMeta(root);
+  if (meta?.pid && meta.pid > 0) candidates.push(meta.pid);
   for (const pid of candidates) {
     try {
       process.kill(pid, 0);
@@ -166,6 +179,38 @@ function isSupervisorActive(root: string): boolean {
     }
   }
   return false;
+}
+
+function readActiveDist(root: string): ".next" | ".next-blue" {
+  const envDist = process.env.NEXT_DIST_DIR?.trim();
+  if (envDist === ".next" || envDist === ".next-blue") return envDist;
+  if (isSupervisorActive(root)) {
+    const meta = readSupervisorMeta(root);
+    if (meta?.activeDist === ".next" || meta?.activeDist === ".next-blue") {
+      return meta.activeDist;
+    }
+  }
+  try {
+    const saved = fs.readFileSync(path.join(root, "db", ".active-dist"), "utf8").trim();
+    if (saved === ".next" || saved === ".next-blue") return saved;
+  } catch {
+    // ignore
+  }
+  return ".next";
+}
+
+function detectCurrentPort(): string {
+  if (process.env.PORT?.trim()) return process.env.PORT.trim();
+  for (let i = 0; i < process.argv.length; i++) {
+    const arg = process.argv[i];
+    if ((arg === "-p" || arg === "--port") && process.argv[i + 1]) {
+      return process.argv[i + 1];
+    }
+    if (arg.startsWith("--port=")) {
+      return arg.slice("--port=".length);
+    }
+  }
+  return "3000";
 }
 
 async function execCmd(
@@ -496,8 +541,21 @@ export async function applyZeroDowntimeUpdate(params: {
     const schemaHashBefore = await sha256File(path.join(root, "prisma", "schema.prisma"));
     const changedFiles: string[] = [];
 
+    const protectedTop = new Set([
+      "db",
+      ".env",
+      ".env.local",
+      ".next",
+      ".next-blue",
+      ".next-live",
+      "node_modules",
+      "backups",
+      ".git",
+      ".aistudio",
+    ]);
+
     if (hasGitDir) {
-      // Step 2A: Native Git repository pull while preserving db/ & public/uploads/ & .env
+      // Step 2A: Native Git fetch + protected staging sync (never overwrites or locks db/ & public/uploads/ & .env)
       const env: NodeJS.ProcessEnv = {
         ...process.env,
         GIT_TERMINAL_PROMPT: "0",
@@ -513,20 +571,73 @@ export async function applyZeroDowntimeUpdate(params: {
         ["fetch", repoCheck.normalized, freshCfg.branch],
         { cwd: root, env, timeout: 60_000 },
       );
-      const { stdout: diffOut } = await execCmd(
+      const { stdout: statusOut } = await execCmd(
         "git",
-        ["diff", "--name-only", "HEAD", "FETCH_HEAD"],
+        ["diff", "--name-status", "HEAD", "FETCH_HEAD"],
         { cwd: root, env, timeout: 15_000 },
       ).catch(() => ({ stdout: "" }));
-      for (const line of diffOut.split("\n")) {
-        const clean = line.trim();
-        if (clean) changedFiles.push(clean);
+
+      const deletedRelPaths: string[] = [];
+      for (const rawLine of statusOut.split("\n")) {
+        const line = rawLine.trim();
+        if (!line) continue;
+        const parts = line.split(/\t+/);
+        if (parts[0]?.startsWith("D") && parts[1]) {
+          deletedRelPaths.push(parts[1].trim());
+        }
       }
-      await execCmd(
-        "git",
-        ["checkout", "-B", freshCfg.branch, "FETCH_HEAD"],
-        { cwd: root, env, timeout: 30_000 },
-      );
+
+      const stagingDir = path.join(os.tmpdir(), `neeleh-git-stage-${Date.now()}`);
+      const extractDir = path.join(stagingDir, "extracted");
+      const archiveFile = path.join(stagingDir, "head.tar");
+      await fs.promises.mkdir(extractDir, { recursive: true });
+      try {
+        await execCmd(
+          "git",
+          ["archive", "--format=tar", `--output=${archiveFile}`, "FETCH_HEAD"],
+          { cwd: root, env, timeout: 45_000 },
+        );
+        await execCmd(
+          "tar",
+          ["-xf", archiveFile, "-C", extractDir],
+          { cwd: root, timeout: 30_000 },
+        );
+        await syncDirectoryDiffAware(
+          extractDir,
+          root,
+          "",
+          changedFiles,
+          new Date(),
+          protectedTop,
+        );
+        for (const rel of deletedRelPaths) {
+          const norm = rel.replace(/\\/g, "/");
+          const top = norm.split("/")[0];
+          if (protectedTop.has(top) || norm.startsWith("public/uploads/")) continue;
+          const target = path.resolve(root, norm);
+          if (target.startsWith(path.resolve(root) + path.sep) && fs.existsSync(target)) {
+            await fs.promises.rm(target, { force: true }).catch(() => {});
+            changedFiles.push(norm);
+          }
+        }
+        await execCmd(
+          "git",
+          ["update-ref", `refs/heads/${freshCfg.branch}`, "FETCH_HEAD"],
+          { cwd: root, env, timeout: 15_000 },
+        ).catch(() => {});
+        await execCmd(
+          "git",
+          ["symbolic-ref", "HEAD", `refs/heads/${freshCfg.branch}`],
+          { cwd: root, env, timeout: 15_000 },
+        ).catch(() => {});
+        await execCmd(
+          "git",
+          ["reset", "--mixed", "HEAD"],
+          { cwd: root, env, timeout: 15_000 },
+        ).catch(() => {});
+      } finally {
+        await fs.promises.rm(stagingDir, { recursive: true, force: true }).catch(() => {});
+      }
     } else {
       // Step 2B: Staging sync (container-friendly, zero DB/uploads loss)
       const stagingDir = path.join(os.tmpdir(), `neeleh-stage-${Date.now()}`);
@@ -600,16 +711,6 @@ export async function applyZeroDowntimeUpdate(params: {
           );
         }
 
-        const protectedTop = new Set([
-          "db",
-          ".env",
-          ".env.local",
-          ".next",
-          "node_modules",
-          "backups",
-          ".git",
-          ".aistudio",
-        ]);
         await syncDirectoryDiffAware(
           extractDir,
           root,
@@ -640,10 +741,18 @@ export async function applyZeroDowntimeUpdate(params: {
         cwd: root,
         timeout: 90_000,
       });
-      await execCmd("npx", ["prisma", "generate"], {
-        cwd: root,
-        timeout: 90_000,
-      });
+      try {
+        await execCmd("npx", ["prisma", "generate"], {
+          cwd: root,
+          timeout: 90_000,
+        });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (!(IS_WIN && /EPERM|EBUSY|query_engine/i.test(msg))) {
+          throw err;
+        }
+        console.warn("[system-updater] Windows locked Prisma DLL during generate; continuing build.");
+      }
     } else {
       await execCmd("npx", ["prisma", "db", "push"], {
         cwd: root,
@@ -654,18 +763,39 @@ export async function applyZeroDowntimeUpdate(params: {
     // Step 4: Production build & zero-downtime reload handling
     let built = false;
     let reloaded = false;
-    let reloadMethod: "dev-live" | "supervisor" | "pm2" | "custom" | "restart-required" = "dev-live";
+    let reloadMethod:
+      | "dev-live"
+      | "supervisor"
+      | "handoff"
+      | "pm2"
+      | "custom"
+      | "restart-required" = "dev-live";
+    let pendingHandoff = false;
+    let buildDistDir: ".next" | ".next-blue" = ".next";
 
     if (isProduction) {
-      await execCmd("npm", ["run", "build"], {
-        cwd: root,
-        timeout: 240_000,
-      });
-      built = true;
-
       const pm2Name = await detectPm2AppName();
       const supervisorActive = isSupervisorActive(root);
       const customRestartCmd = process.env.UPDATE_RESTART_CMD?.trim();
+      const canHandoff =
+        !pm2Name &&
+        !supervisorActive &&
+        !customRestartCmd &&
+        !isCloudRun &&
+        fs.existsSync(path.join(root, "scripts", "handoff-restart.mjs")) &&
+        fs.existsSync(path.join(root, "scripts", "prod-server.mjs"));
+
+      if (supervisorActive || canHandoff) {
+        const currentDist = readActiveDist(root);
+        buildDistDir = currentDist === ".next" ? ".next-blue" : ".next";
+      }
+
+      await execCmd("npm", ["run", "build"], {
+        cwd: root,
+        env: { ...process.env, NODE_ENV: "production", NEXT_DIST_DIR: buildDistDir },
+        timeout: 240_000,
+      });
+      built = true;
 
       if (pm2Name) {
         reloadMethod = "pm2";
@@ -679,7 +809,11 @@ export async function applyZeroDowntimeUpdate(params: {
         const triggerFile = path.join(root, "db", ".reload-trigger");
         await fs.promises.writeFile(
           triggerFile,
-          JSON.stringify({ commit: targetCommit, triggeredAt: new Date().toISOString() }),
+          JSON.stringify({
+            commit: targetCommit,
+            distDir: buildDistDir,
+            triggeredAt: new Date().toISOString(),
+          }),
           "utf8",
         );
       } else if (customRestartCmd) {
@@ -693,6 +827,10 @@ export async function applyZeroDowntimeUpdate(params: {
             () => {},
           );
         }, 700);
+      } else if (canHandoff) {
+        reloadMethod = "handoff";
+        reloaded = true;
+        pendingHandoff = true;
       } else {
         reloadMethod = "restart-required";
         reloaded = false;
@@ -716,8 +854,11 @@ export async function applyZeroDowntimeUpdate(params: {
       summary = `${changedCount} فایل همگام‌سازی و بیلد شد (${targetCommit})، اما روی سرویس Cloud Run/Shared پیش‌نمایش برای اعمال روی ترافیک زنده باید Publish مجدد شود (${samplePaths}).`;
       userMessage = `تغییرات (${changedCount} فایل) دریافت و بیلد شدند، اما در محیط Shared App (Cloud Run) فرآیند سرور به‌صورت خودکار ری‌استارت نمی‌شود؛ برای دیدن تغییر در سایت اصلی باید اپلیکیشن را دوباره Publish کنید یا روی سرور با اسکریپت npm run start اجرا نمایید.`;
     } else if (needsRestart) {
-      summary = `${changedCount} فایل بروز شد و بیلد تولیدی ساخته شد (${targetCommit})؛ برای فعال‌سازی روی ترافیک زنده سرویس را با npm run start اجرا کنید یا یک‌بار ری‌استارت نمایید.`;
-      userMessage = `${changedCount} فایل بروزرسانی و بیلد شدند. چون سوپروایزر داخلی (npm run start) یا PM2 فعال نیست، یک‌بار سرویس سرور را ری‌استارت کنید.`;
+      summary = `${changedCount} فایل بروز شد و بیلد تولیدی ساخته شد (${targetCommit})؛ برای فعال‌سازی روی ترافیک زنده سرویس را ری‌استارت نمایید.`;
+      userMessage = `${changedCount} فایل بروزرسانی و بیلد شدند، اما فرآیند سرور امکان ری‌استارت خودکار نداشت.`;
+    } else if (isProduction && reloadMethod === "handoff") {
+      summary = `${changedCount} فایل همگام‌سازی، بیلد و به‌طور خودکار به سوپروایزر بدون قطعی منتقل شد (${targetCommit}): ${samplePaths}`;
+      userMessage = `بروزرسانی کامل انجام شد (${changedCount} فایل تغییر یافت، بیلد جدید ساخته شد و سرور به‌طور خودکار به حالت بدون قطعی سوئیچ و ریلود شد).`;
     } else if (isProduction && reloadMethod === "supervisor") {
       summary = `${changedCount} فایل همگام‌سازی، بیلد و توسط سوپروایزر داخلی بدون قطعی جایگزین شد (${targetCommit}): ${samplePaths}`;
       userMessage = `بروزرسانی کامل انجام شد (${changedCount} فایل تغییر یافت، بیلد جدید ساخته شد و سرویس بدون قطعی به‌طور خودکار ریلود شد).`;
@@ -752,6 +893,31 @@ export async function applyZeroDowntimeUpdate(params: {
         actorId: params.actorId ?? null,
       },
     });
+
+    if (pendingHandoff) {
+      const handoffScript = path.join(root, "scripts", "handoff-restart.mjs");
+      const child = spawn(
+        process.execPath,
+        [
+          handoffScript,
+          `--old-pid=${process.pid}`,
+          `--port=${detectCurrentPort()}`,
+          `--root=${root}`,
+          `--dist-dir=${buildDistDir}`,
+        ],
+        {
+          cwd: root,
+          detached: true,
+          windowsHide: true,
+          stdio: "ignore",
+          env: {
+            ...process.env,
+            NEELEH_APP_ROOT: root,
+          },
+        },
+      );
+      child.unref();
+    }
 
     return {
       ok: true,

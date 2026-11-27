@@ -61,12 +61,17 @@ fi
 npx prisma db push
 npx prisma generate
 
-echo "[neeleh-update] Building next production bundle..."
-npm run build
+NEXT_DIST=".next"
+if [ -f "db/.supervisor.json" ] && grep -q '"activeDist"[[:space:]]*:[[:space:]]*".next"' db/.supervisor.json 2>/dev/null; then
+  NEXT_DIST=".next-blue"
+fi
+
+echo "[neeleh-update] Building next production bundle into $NEXT_DIST..."
+NEXT_DIST_DIR="$NEXT_DIST" npm run build
 
 if [ -f "db/.supervisor.json" ]; then
-  echo "[neeleh-update] Triggering zero-downtime blue-green reload via supervisor..."
-  printf '{"commit":"%s","triggeredAt":"%s"}\n' "$REMOTE_SHA" "$(date -Iseconds)" > db/.reload-trigger
+  echo "[neeleh-update] Triggering zero-downtime blue-green reload via supervisor ($NEXT_DIST)..."
+  printf '{"commit":"%s","distDir":"%s","triggeredAt":"%s"}\n' "$REMOTE_SHA" "$NEXT_DIST" "$(date -Iseconds)" > db/.reload-trigger
 elif command -v pm2 >/dev/null 2>&1; then
   echo "[neeleh-update] Reloading PM2 cluster gracefully (0ms downtime)..."
   pm2 reload "$PM2_APP" --update-env

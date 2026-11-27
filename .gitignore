@@ -1,6 +1,8 @@
 # Dependencies & build output
 node_modules/
 .next/
+.next-blue/
+.next-live/
 out/
 .turbo/
 .vercel/
@@ -9,6 +11,9 @@ out/
 .env
 .env*.local
 db/.session_secret
+db/.supervisor.json
+db/.reload-trigger
+db/.active-dist
 db/backups/
 
 # Generated backups & logs
