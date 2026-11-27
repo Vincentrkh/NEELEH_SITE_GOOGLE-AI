@@ -516,7 +516,7 @@ export function SystemUpdaterPanel({
   return (
     <div className="space-y-8">
       {/* Zero-Downtime & Data Preservation Banner */}
-      <div className="rounded-lg border border-rose-800/80 bg-rose-950 p-4 sm:p-5 text-rose-50 shadow-sm dark:border-rose-700/80 dark:bg-rose-950/95 flex items-start gap-3.5">
+      <div className="rounded-lg border border-rose-800/80 bg-blue-500 p-4 sm:p-5 text-rose-50 shadow-sm dark:border-rose-700/80 dark:bg-blue-500/95 flex items-start gap-3.5">
         <div className="rounded-md bg-rose-400/15 border border-rose-400/30 p-2 shrink-0 mt-0.5">
           <ShieldCheck className="size-4 text-rose-300" />
         </div>
