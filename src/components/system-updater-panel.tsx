@@ -530,15 +530,15 @@ export function SystemUpdaterPanel({
             {fa ? (
               <>
                 پیش از هر بروزرسانی، یک بکاپ فوری در سرور گرفته می‌شود و فایل‌های دیتابیس{" "}
-                <code dir="ltr" className="mx-0.5 rounded bg-rose-900/80 px-1.5 py-0.5 font-mono text-[11px] text-rose-200">
+                <code dir="ltr" className="mx-0.5 rounded bg-cyan-500/80 px-1.5 py-0.5 font-mono text-[11px] text-rose-200">
                   db/custom.db
                 </code>
                 ، فایل‌های آپلودشده کاربران{" "}
-                <code dir="ltr" className="mx-0.5 rounded bg-rose-900/80 px-1.5 py-0.5 font-mono text-[11px] text-rose-200">
+                <code dir="ltr" className="mx-0.5 rounded bg-cyan-500/80 px-1.5 py-0.5 font-mono text-[11px] text-rose-200">
                   public/uploads/
                 </code>
                 ، متغیرهای محیطی{" "}
-                <code dir="ltr" className="mx-0.5 rounded bg-rose-900/80 px-1.5 py-0.5 font-mono text-[11px] text-rose-200">
+                <code dir="ltr" className="mx-0.5 rounded bg-cyan-500/80 px-1.5 py-0.5 font-mono text-[11px] text-rose-200">
                   .env
                 </code>{" "}
                 و کلید نشست‌ها دست‌نخورده باقی می‌مانند. همچنین اسکیمای دیتابیس فقط به‌صورت افزایشی همگام‌سازی می‌شود.
@@ -548,7 +548,7 @@ export function SystemUpdaterPanel({
             )}
           </p>
           <div
-            className="inline-block rounded bg-rose-900/60 border border-rose-800 px-2.5 py-1 font-mono text-[11px] text-rose-200"
+            className="inline-block rounded bg-cyan-500/60 border border-rose-800 px-2.5 py-1 font-mono text-[11px] text-rose-200"
             dir="ltr"
           >
             Protected paths: {cfg.preserveDataPaths}
