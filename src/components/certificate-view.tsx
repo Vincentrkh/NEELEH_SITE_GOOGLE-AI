@@ -65,11 +65,7 @@ export function CertificateView({ data }: { data: CertificateViewData }) {
   }
 
   const issueFa = localeDate("fa", data.issuedAt);
-  const issueEn = new Intl.DateTimeFormat("en-US", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  }).format(new Date(data.issuedAt));
+  const issueEn = localeDate("en", data.issuedAt);
 
   return (
     <main className="min-h-[100svh] bg-[#f7f6f2] text-[#141414] py-8 sm:py-12 px-4 sm:px-8 print:bg-white print:p-0">

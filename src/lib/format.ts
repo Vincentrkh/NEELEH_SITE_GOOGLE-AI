@@ -20,25 +20,31 @@ export function faNumber(n: number): string {
   return toFaDigits(n.toLocaleString("en-US"));
 }
 
+const CANONICAL_TZ = "Asia/Tehran";
+
 export function faDate(d: Date | string | null | undefined): string {
   if (!d) return "—";
   const date = typeof d === "string" ? new Date(d) : d;
+  if (Number.isNaN(date.getTime())) return "—";
   return new Intl.DateTimeFormat("fa-IR-u-ca-persian", {
     year: "numeric",
     month: "long",
     day: "numeric",
+    timeZone: CANONICAL_TZ,
   }).format(date);
 }
 
 export function faDateTime(d: Date | string | null | undefined): string {
   if (!d) return "—";
   const date = typeof d === "string" ? new Date(d) : d;
+  if (Number.isNaN(date.getTime())) return "—";
   return new Intl.DateTimeFormat("fa-IR-u-ca-persian", {
     year: "numeric",
     month: "long",
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: CANONICAL_TZ,
   }).format(date);
 }
 
@@ -46,22 +52,26 @@ export function faDateTime(d: Date | string | null | undefined): string {
 export function enDate(d: Date | string | null | undefined): string {
   if (!d) return "—";
   const date = typeof d === "string" ? new Date(d) : d;
+  if (Number.isNaN(date.getTime())) return "—";
   return new Intl.DateTimeFormat("en-US", {
     year: "numeric",
     month: "long",
     day: "numeric",
+    timeZone: CANONICAL_TZ,
   }).format(date);
 }
 
 export function enDateTime(d: Date | string | null | undefined): string {
   if (!d) return "—";
   const date = typeof d === "string" ? new Date(d) : d;
+  if (Number.isNaN(date.getTime())) return "—";
   return new Intl.DateTimeFormat("en-US", {
     year: "numeric",
     month: "long",
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: CANONICAL_TZ,
   }).format(date);
 }
 
@@ -83,9 +93,15 @@ export function localeYearFromShamsi(lang: "en" | "fa", shamsi: number): number 
 /** Return the current year formatted for the active calendar (Shamsi Persian digits in fa, Gregorian in en). */
 export function localeCurrentYear(lang: "en" | "fa", now: Date = new Date()): string {
   if (lang === "fa") {
-    return new Intl.DateTimeFormat("fa-IR-u-ca-persian", { year: "numeric" }).format(now);
+    return new Intl.DateTimeFormat("fa-IR-u-ca-persian", {
+      year: "numeric",
+      timeZone: CANONICAL_TZ,
+    }).format(now);
   }
-  return String(now.getFullYear());
+  return new Intl.DateTimeFormat("en-US", {
+    year: "numeric",
+    timeZone: CANONICAL_TZ,
+  }).format(now);
 }
 
 /** Locale-aware number/date formatters — pick the right one based on lang. */

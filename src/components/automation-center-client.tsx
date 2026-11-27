@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Check, ShieldAlert, ToggleLeft, ToggleRight, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLang } from "@/components/language-provider";
+import { localeDateTime } from "@/lib/format";
 
 type IntegrationItem = {
   id: string;
@@ -280,7 +281,7 @@ export function AutomationCenterClient({
                 <div key={ev.id} className="px-4 py-3 flex items-center justify-between text-xs">
                   <span className="font-mono font-medium">{ev.name}</span>
                   <span className="text-muted-foreground">
-                    {ev.entityType} · {new Date(ev.createdAt).toLocaleString()}
+                    {ev.entityType} · {localeDateTime(lang, ev.createdAt)}
                   </span>
                 </div>
               ))
