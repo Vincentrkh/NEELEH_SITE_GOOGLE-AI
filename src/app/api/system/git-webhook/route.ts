@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { decryptSecret, verifyGithubHmacSignature } from "@/lib/crypto-vault";
 import {
   applyZeroDowntimeUpdate,
@@ -40,6 +41,13 @@ export async function POST(req: NextRequest) {
   const trigger = validCron ? "SCHEDULED" : "WEBHOOK";
   if (cfg.autoApplyEnabled) {
     const res = await applyZeroDowntimeUpdate({ trigger });
+    if (res.ok) {
+      try {
+        revalidatePath("/", "layout");
+      } catch {
+        // ignore
+      }
+    }
     return NextResponse.json(res, { status: res.ok ? 200 : 500 });
   }
 

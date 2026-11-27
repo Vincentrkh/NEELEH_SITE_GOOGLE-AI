@@ -53,7 +53,11 @@ mkdir -p db public/uploads
 [ -d "$PROTECT_TMP/uploads" ] && cp -rn "$PROTECT_TMP/uploads/." "public/uploads/" || true
 
 echo "[neeleh-update] Installing dependencies & syncing database schema..."
-npm ci --no-audit --no-fund
+if [ -f "package-lock.json" ]; then
+  npm ci --no-audit --no-fund
+else
+  npm install --no-audit --no-fund
+fi
 npx prisma db push
 npx prisma generate
 

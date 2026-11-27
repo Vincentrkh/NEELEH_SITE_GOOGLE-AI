@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useLang } from "@/components/language-provider";
 import { useToast } from "@/hooks/use-toast";
 import { localeDateTime, localeNumber } from "@/lib/format";
@@ -50,6 +51,9 @@ export type UpdateStatusPayload = {
     hasGitDir: boolean;
     appVersion: string;
     dbEngine: string;
+    runtimeMode?: "production" | "development";
+    isCloudRun?: boolean;
+    hasPm2?: boolean;
   };
   logs: Array<{
     id: string;
@@ -74,6 +78,7 @@ export function SystemUpdaterPanel({
   const fa = lang === "fa";
   const { toast } = useToast();
 
+  const router = useRouter();
   const [data, setData] = useState<UpdateStatusPayload>(initialData);
 
   const [repoUrl, setRepoUrl] = useState(initialData.config.repoUrl);
@@ -96,8 +101,9 @@ export function SystemUpdaterPanel({
   const [saving, setSaving] = useState(false);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{
-    kind: "success" | "error";
+    kind: "success" | "warning" | "error";
     text: string;
+    detail?: string;
   } | null>(null);
 
   const hasUnsavedConfig =
@@ -184,6 +190,10 @@ export function SystemUpdaterPanel({
         updateAvailable?: boolean;
         remoteCommit?: string;
         toCommit?: string;
+        changedFilesCount?: number;
+        changedFilesSample?: string[];
+        needsRestart?: boolean;
+        reloaded?: boolean;
       };
       if (json.config && json.logs) {
         setData({
@@ -202,6 +212,10 @@ export function SystemUpdaterPanel({
         });
         return;
       }
+      const isWarning =
+        action === "apply" &&
+        (Boolean(json.needsRestart) || json.changedFilesCount === 0);
+
       const successTitle =
         action === "check"
           ? json.updateAvailable
@@ -212,9 +226,13 @@ export function SystemUpdaterPanel({
               ? `بررسی انجام شد — سیستم با مخزن همگام است (${json.remoteCommit ?? ""})`
               : "Checked — repository is up to date"
           : action === "apply"
-            ? fa
-              ? `بروزرسانی امن انجام شد (${json.toCommit ?? ""})`
-              : "Zero-downtime update applied"
+            ? json.needsRestart
+              ? fa
+                ? `تغییرات دریافت و بیلد شد اما نیاز به ری‌استارت سرویس است (${json.toCommit ?? ""})`
+                : `Built (${json.toCommit ?? ""}) — restart required for live process`
+              : fa
+                ? `بروزرسانی امن انجام شد (${json.toCommit ?? ""})`
+                : "Zero-downtime update applied"
             : action === "snapshot"
               ? fa
                 ? "نسخه پشتیبان فوری ایجاد شد"
@@ -223,11 +241,26 @@ export function SystemUpdaterPanel({
                 ? "دیتابیس با موفقیت بازگردانی شد"
                 : "Database restored from snapshot";
 
-      setFeedback({ kind: "success", text: successTitle });
+      const detailParts: string[] = [];
+      if (json.message) detailParts.push(json.message);
+      if (json.changedFilesSample && json.changedFilesSample.length > 0) {
+        detailParts.push(
+          `${fa ? "فایل‌های تغییریافته:" : "Changed files:"} ${json.changedFilesSample.join(", ")}`,
+        );
+      }
+
+      setFeedback({
+        kind: isWarning ? "warning" : "success",
+        text: successTitle,
+        detail: detailParts.join(" — ") || undefined,
+      });
       toast({
         title: successTitle,
         description: json.message,
       });
+      if (action === "apply") {
+        router.refresh();
+      }
     } finally {
       setBusyAction(null);
     }
@@ -345,13 +378,17 @@ export function SystemUpdaterPanel({
             className={`text-sm font-semibold flex items-center gap-1.5 ${
               cfg.lastStatus === "FAILED"
                 ? "text-rose-700"
-                : cfg.lastStatus === "SUCCESS" || cfg.lastStatus === "UP_TO_DATE"
-                  ? "text-emerald-700"
-                  : "text-foreground"
+                : cfg.lastStatus === "RESTART_REQUIRED"
+                  ? "text-amber-700"
+                  : cfg.lastStatus === "SUCCESS" || cfg.lastStatus === "UP_TO_DATE"
+                    ? "text-emerald-700"
+                    : "text-foreground"
             }`}
           >
             {cfg.lastStatus === "FAILED" ? (
               <XCircle className="size-4" />
+            ) : cfg.lastStatus === "RESTART_REQUIRED" ? (
+              <AlertTriangle className="size-4 text-amber-600" />
             ) : (
               <CheckCircle2 className="size-4 text-emerald-600" />
             )}
@@ -361,18 +398,45 @@ export function SystemUpdaterPanel({
             {cfg.lastError ||
               (cfg.lastUpdatedAt
                 ? `${fa ? "آخرین آپدیت:" : "Updated:"} ${localeDateTime(lang, cfg.lastUpdatedAt)}`
-                : fa
-                  ? "بکاپ خودکار فعال"
-                  : "Auto snapshot enabled")}
+                : data.environment.runtimeMode === "production"
+                  ? data.environment.hasPm2
+                    ? fa
+                      ? "محیط تولید (PM2 زنده)"
+                      : "Production (PM2 Live)"
+                    : data.environment.isCloudRun
+                      ? fa
+                        ? "محیط پیش‌نمایش Shared (Cloud Run)"
+                        : "Shared Preview (Cloud Run)"
+                      : fa
+                        ? "محیط تولید (نیاز به ری‌استارت دستی)"
+                        : "Production (Manual restart)"
+                  : fa
+                    ? "محیط توسعه (اعمال آنی فایل‌ها)"
+                    : "Development (Live sync)")}
           </div>
         </div>
       </div>
 
       {/* Primary Action Bar */}
       <div className="rounded-lg border border-border bg-card p-4 space-y-3">
+        {data.environment.runtimeMode === "production" && !data.environment.hasPm2 && (
+          <div className="rounded-md border border-amber-300 bg-zinc-50 dark:bg-zinc-900 px-3.5 py-2.5 text-xs text-amber-900 dark:text-amber-300 flex items-start gap-2 leading-relaxed">
+            <AlertTriangle className="size-4 text-amber-600 shrink-0 mt-0.5" />
+            <span>
+              {data.environment.isCloudRun
+                ? fa
+                  ? "توجه: سایت هم‌اکنون در محیط Shared App (Cloud Run) با بیلد ایستا اجرا می‌شود. بروزرسانی گیت فایل‌ها را همگام‌سازی و بیلد می‌کند، اما برای تغییر ترافیک زنده روی لینک Shared باید بعد از تغییر، دکمه Publish را بزنید یا سایت را روی سرور VPS با PM2 اجرا کنید."
+                  : "Note: Running in Cloud Run shared preview mode. Git sync rebuilds locally, but live Cloud Run traffic requires re-publishing or running on a VPS with PM2."
+                : fa
+                  ? "توجه: محیط تولید بدون PM2 فعال است؛ پس از بیلد جدید توسط آپدیتر، برای نمایش تغییرات در سایت اصلی سرویس سرور را یک‌بار ری‌استارت کنید."
+                  : "Note: Running in production without PM2. Restart the Node process once after an update build completes."}
+            </span>
+          </div>
+        )}
+
         {!repoUrl.trim() && (
-          <div className="rounded-md border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs text-amber-900 flex items-center gap-2">
-            <AlertTriangle className="size-4 text-amber-700 shrink-0" />
+          <div className="rounded-md border border-amber-300 bg-zinc-50 dark:bg-zinc-900 px-3.5 py-2.5 text-xs text-amber-900 dark:text-amber-300 flex items-center gap-2">
+            <AlertTriangle className="size-4 text-amber-600 shrink-0" />
             <span>
               {fa
                 ? "هنوز آدرس مخزن گیت تنظیم نشده است؛ آدرس HTTPS مخزن خود را در فرم زیر وارد کرده و بررسی یا بروزرسانی را بزنید."
@@ -383,18 +447,27 @@ export function SystemUpdaterPanel({
 
         {feedback && (
           <div
-            className={`rounded-md border px-3.5 py-2.5 text-xs flex items-center gap-2 ${
+            className={`rounded-md border px-3.5 py-3 text-xs flex items-start gap-2.5 leading-relaxed ${
               feedback.kind === "error"
-                ? "border-rose-200 bg-rose-50 text-rose-900"
-                : "border-emerald-200 bg-emerald-50 text-emerald-900"
+                ? "border-rose-300 bg-rose-950/5 dark:bg-rose-950/30 text-rose-900 dark:text-rose-200"
+                : feedback.kind === "warning"
+                  ? "border-amber-300 bg-zinc-50 dark:bg-zinc-900 text-amber-900 dark:text-amber-200"
+                  : "border-emerald-300 bg-zinc-50 dark:bg-zinc-900 text-emerald-900 dark:text-emerald-200"
             }`}
           >
             {feedback.kind === "error" ? (
-              <XCircle className="size-4 text-rose-700 shrink-0" />
+              <XCircle className="size-4 text-rose-600 shrink-0 mt-0.5" />
+            ) : feedback.kind === "warning" ? (
+              <AlertTriangle className="size-4 text-amber-600 shrink-0 mt-0.5" />
             ) : (
-              <CheckCircle2 className="size-4 text-emerald-700 shrink-0" />
+              <CheckCircle2 className="size-4 text-emerald-600 shrink-0 mt-0.5" />
             )}
-            <span>{feedback.text}</span>
+            <div className="space-y-1 min-w-0">
+              <div className="font-semibold">{feedback.text}</div>
+              {feedback.detail && (
+                <div className="opacity-90 break-words">{feedback.detail}</div>
+              )}
+            </div>
           </div>
         )}
 

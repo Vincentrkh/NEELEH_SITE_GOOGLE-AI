@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth";
 import { apiMsg } from "@/lib/i18n";
 import { db } from "@/lib/db";
@@ -136,6 +137,13 @@ export async function POST(req: NextRequest) {
 
   if (body.action === "apply") {
     const res = await applyZeroDowntimeUpdate({ trigger: "MANUAL", actorId: admin.id });
+    if (res.ok) {
+      try {
+        revalidatePath("/", "layout");
+      } catch {
+        // ignore outside request cache
+      }
+    }
     const status = await getSafeUpdateStatus();
     return NextResponse.json({ ...res, ...status }, { status: res.ok ? 200 : 400 });
   }
