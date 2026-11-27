@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLang } from "@/components/language-provider";
 import { useToast } from "@/hooks/use-toast";
@@ -102,11 +102,165 @@ export function SystemUpdaterPanel({
 
   const [saving, setSaving] = useState(false);
   const [busyAction, setBusyAction] = useState<string | null>(null);
+  const [isPolling, setIsPolling] = useState<boolean>(
+    () =>
+      initialData.config.lastStatus === "UPDATING" ||
+      initialData.logs.some((l) => l.status === "UPDATING"),
+  );
+  const [reconnecting, setReconnecting] = useState(false);
+  const activeLogIdRef = useRef<string | null>(
+    initialData.logs.find((l) => l.status === "UPDATING")?.id ?? null,
+  );
+  const transientErrorsRef = useRef(0);
   const [feedback, setFeedback] = useState<{
     kind: "success" | "warning" | "error";
     text: string;
     detail?: string;
   } | null>(null);
+
+  const isUpdating = busyAction === "apply" || isPolling;
+
+  useEffect(() => {
+    if (!isPolling) return;
+    let cancelled = false;
+
+    const pollOnce = async () => {
+      try {
+        const res = await fetch("/api/dashboard/updates/", { cache: "no-store" });
+        if (cancelled) return;
+        if (!res.ok) {
+          if (res.status >= 500 && transientErrorsRef.current < 24) {
+            transientErrorsRef.current += 1;
+            setReconnecting(true);
+            return;
+          }
+          setIsPolling(false);
+          setReconnecting(false);
+          setFeedback({
+            kind: "error",
+            text: fa ? "خطا در دریافت وضعیت بروزرسانی" : "Failed to poll update status",
+            detail: `HTTP ${res.status}`,
+          });
+          return;
+        }
+
+        const json = (await res.json()) as UpdateStatusPayload;
+        if (cancelled) return;
+        transientErrorsRef.current = 0;
+        setReconnecting(false);
+
+        if (json.config && json.logs) {
+          setData({
+            config: json.config,
+            environment: json.environment,
+            logs: json.logs,
+          });
+        }
+
+        const trackedLog =
+          (activeLogIdRef.current
+            ? json.logs.find((l) => l.id === activeLogIdRef.current)
+            : undefined) ?? json.logs[0];
+
+        const stillRunning =
+          json.config.lastStatus === "UPDATING" || trackedLog?.status === "UPDATING";
+
+        if (stillRunning) {
+          setFeedback({
+            kind: "success",
+            text: fa
+              ? "در حال انجام بروزرسانی خودکار و بدون قطعی..."
+              : "Zero-downtime update in progress...",
+            detail: trackedLog?.summary || undefined,
+          });
+          return;
+        }
+
+        setIsPolling(false);
+        activeLogIdRef.current = null;
+
+        if (trackedLog?.status === "FAILED" || json.config.lastStatus === "ERROR") {
+          const errMsg =
+            trackedLog?.errorMessage ||
+            json.config.lastError ||
+            trackedLog?.summary ||
+            (fa ? "بروزرسانی با خطا متوقف شد" : "Update failed");
+          setFeedback({
+            kind: "error",
+            text: fa ? "بروزرسانی متوقف شد" : "Update failed",
+            detail: errMsg,
+          });
+          toast({
+            title: fa ? "بروزرسانی متوقف شد" : "Update failed",
+            description: errMsg,
+            variant: "destructive",
+          });
+          return;
+        }
+
+        if (
+          trackedLog?.status === "RESTART_REQUIRED" ||
+          json.config.lastStatus === "RESTART_REQUIRED"
+        ) {
+          const warnMsg = trackedLog?.summary || (fa ? "نیاز به ریلود سرور" : "Restart required");
+          setFeedback({
+            kind: "warning",
+            text: fa
+              ? `تغییرات دریافت و بیلد شد (${trackedLog?.toCommit ?? json.config.currentCommit ?? ""})`
+              : "Built — server reload required",
+            detail: warnMsg,
+          });
+          toast({
+            title: fa ? "نیاز به ریلود نهایی" : "Reload required",
+            description: warnMsg,
+          });
+          return;
+        }
+
+        const doneTitle = fa
+          ? `بروزرسانی با موفقیت اعمال شد (${trackedLog?.toCommit ?? json.config.currentCommit ?? ""})`
+          : `Update applied (${trackedLog?.toCommit ?? json.config.currentCommit ?? ""})`;
+        setFeedback({
+          kind: "success",
+          text: doneTitle,
+          detail: trackedLog?.summary || undefined,
+        });
+        toast({
+          title: doneTitle,
+          description: fa
+            ? "صفحه به‌طور خودکار برای نمایش تغییرات ریلود می‌شود..."
+            : "Reloading page to apply updated assets...",
+        });
+        setTimeout(() => {
+          window.location.reload();
+        }, 1200);
+      } catch {
+        if (cancelled) return;
+        if (transientErrorsRef.current < 24) {
+          transientErrorsRef.current += 1;
+          setReconnecting(true);
+          return;
+        }
+        setIsPolling(false);
+        setReconnecting(false);
+        setFeedback({
+          kind: "error",
+          text: fa ? "ارتباط با سرور قطع شد" : "Lost connection to server",
+          detail: fa
+            ? "لطفاً صفحه را رفرش کنید و وضعیت جدول تاریخچه را بررسی نمایید."
+            : "Please refresh the page and check the update log table.",
+        });
+      }
+    };
+
+    const timer = setInterval(() => {
+      void pollOnce();
+    }, 1500);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [isPolling, fa, toast]);
 
   const hasUnsavedConfig =
     repoUrl.trim() !== data.config.repoUrl ||
@@ -162,6 +316,15 @@ export function SystemUpdaterPanel({
         setFeedback({ kind: "success", text: msg });
         toast({ title: msg });
       }
+    } catch (err) {
+      const errText =
+        err instanceof Error
+          ? err.message
+          : fa
+            ? "خطا در ذخیره تنظیمات"
+            : "Failed to save settings";
+      setFeedback({ kind: "error", text: errText });
+      toast({ title: errText, variant: "destructive" });
     } finally {
       setSaving(false);
     }
@@ -185,8 +348,12 @@ export function SystemUpdaterPanel({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action, logId }),
       });
-      const json = (await res.json()) as UpdateStatusPayload & {
+
+      const rawText = await res.text();
+      let json: (UpdateStatusPayload & {
         ok?: boolean;
+        started?: boolean;
+        logId?: string;
         message?: string;
         error?: string;
         updateAvailable?: boolean;
@@ -197,16 +364,31 @@ export function SystemUpdaterPanel({
         needsRestart?: boolean;
         reloaded?: boolean;
         reloadMethod?: string;
-      };
-      if (json.config && json.logs) {
+      }) | null = null;
+
+      try {
+        json = JSON.parse(rawText);
+      } catch {
+        const errText = fa
+          ? `پاسخ نامعتبر از سرور (کد ${res.status})`
+          : `Unexpected server response (HTTP ${res.status})`;
+        setFeedback({ kind: "error", text: errText });
+        toast({ title: errText, variant: "destructive" });
+        return;
+      }
+
+      if (json?.config && json?.logs) {
         setData({
           config: json.config,
           environment: json.environment,
           logs: json.logs,
         });
       }
-      if (!res.ok) {
-        const errText = json.error || json.message || (fa ? "عملیات بروزرسانی انجام نشد" : "Update action failed");
+      if (!res.ok || !json) {
+        const errText =
+          json?.error ||
+          json?.message ||
+          (fa ? "عملیات بروزرسانی انجام نشد" : "Update action failed");
         setFeedback({ kind: "error", text: errText });
         toast({
           title: fa ? "عملیات بروزرسانی انجام نشد" : "Update action failed",
@@ -215,6 +397,28 @@ export function SystemUpdaterPanel({
         });
         return;
       }
+
+      if (action === "apply" && json.started) {
+        activeLogIdRef.current =
+          json.logId ?? json.logs?.find((l) => l.status === "UPDATING")?.id ?? null;
+        transientErrorsRef.current = 0;
+        setReconnecting(false);
+        setIsPolling(true);
+        const startText = fa
+          ? "بروزرسانی خودکار آغاز شد..."
+          : "Background update started...";
+        setFeedback({
+          kind: "success",
+          text: startText,
+          detail: json.message,
+        });
+        toast({
+          title: startText,
+          description: json.message,
+        });
+        return;
+      }
+
       const isWarning =
         action === "apply" &&
         (Boolean(json.needsRestart) || json.changedFilesCount === 0);
@@ -261,15 +465,26 @@ export function SystemUpdaterPanel({
         title: successTitle,
         description: json.message,
       });
-      if (action === "apply") {
-        if (json.reloadMethod === "handoff" || json.reloadMethod === "supervisor") {
-          setTimeout(() => {
-            router.refresh();
-          }, 2600);
-        } else {
-          router.refresh();
-        }
+      if (action === "rollback") {
+        router.refresh();
+      } else if (action === "apply" && !json.needsRestart) {
+        setTimeout(() => {
+          window.location.reload();
+        }, 1200);
       }
+    } catch (err) {
+      const errText =
+        err instanceof Error
+          ? err.message
+          : fa
+            ? "خطا در برقراری ارتباط با سرور"
+            : "Network error communicating with server";
+      setFeedback({ kind: "error", text: errText });
+      toast({
+        title: fa ? "خطا در اجرای عملیات" : "Action failed",
+        description: errText,
+        variant: "destructive",
+      });
     } finally {
       setBusyAction(null);
     }
@@ -286,9 +501,9 @@ export function SystemUpdaterPanel({
   return (
     <div className="space-y-8">
       {/* Zero-Downtime & Data Preservation Banner */}
-      <div className="rounded-lg border border-indigo-800/80 bg-indigo-950 p-4 sm:p-5 text-indigo-50 shadow-sm dark:border-indigo-700/80 dark:bg-indigo-950/95 flex items-start gap-3.5">
-        <div className="rounded-md bg-indigo-400/15 border border-indigo-400/30 p-2 shrink-0 mt-0.5">
-          <ShieldCheck className="size-4 text-indigo-300" />
+      <div className="rounded-lg border border-rose-800/80 bg-rose-950 p-4 sm:p-5 text-rose-50 shadow-sm dark:border-rose-700/80 dark:bg-rose-950/95 flex items-start gap-3.5">
+        <div className="rounded-md bg-rose-400/15 border border-rose-400/30 p-2 shrink-0 mt-0.5">
+          <ShieldCheck className="size-4 text-rose-300" />
         </div>
         <div className="space-y-2 text-xs leading-relaxed flex-1 min-w-0">
           <div className="font-semibold text-sm text-white">
@@ -296,19 +511,19 @@ export function SystemUpdaterPanel({
               ? "تضمین حفظ ۱۰۰٪ داده‌ها و بدون قطعی برای کاربران"
               : "100% Data Preservation & Zero-Downtime Guarantee"}
           </div>
-          <p className="text-indigo-100/90">
+          <p className="text-rose-100/90">
             {fa ? (
               <>
                 پیش از هر بروزرسانی، یک بکاپ فوری در سرور گرفته می‌شود و فایل‌های دیتابیس{" "}
-                <code dir="ltr" className="mx-0.5 rounded bg-indigo-900/80 px-1.5 py-0.5 font-mono text-[11px] text-indigo-200">
+                <code dir="ltr" className="mx-0.5 rounded bg-rose-900/80 px-1.5 py-0.5 font-mono text-[11px] text-rose-200">
                   db/custom.db
                 </code>
                 ، فایل‌های آپلودشده کاربران{" "}
-                <code dir="ltr" className="mx-0.5 rounded bg-indigo-900/80 px-1.5 py-0.5 font-mono text-[11px] text-indigo-200">
+                <code dir="ltr" className="mx-0.5 rounded bg-rose-900/80 px-1.5 py-0.5 font-mono text-[11px] text-rose-200">
                   public/uploads/
                 </code>
                 ، متغیرهای محیطی{" "}
-                <code dir="ltr" className="mx-0.5 rounded bg-indigo-900/80 px-1.5 py-0.5 font-mono text-[11px] text-indigo-200">
+                <code dir="ltr" className="mx-0.5 rounded bg-rose-900/80 px-1.5 py-0.5 font-mono text-[11px] text-rose-200">
                   .env
                 </code>{" "}
                 و کلید نشست‌ها دست‌نخورده باقی می‌مانند. همچنین اسکیمای دیتابیس فقط به‌صورت افزایشی همگام‌سازی می‌شود.
@@ -318,7 +533,7 @@ export function SystemUpdaterPanel({
             )}
           </p>
           <div
-            className="inline-block rounded bg-indigo-900/60 border border-indigo-800 px-2.5 py-1 font-mono text-[11px] text-indigo-200"
+            className="inline-block rounded bg-rose-900/60 border border-rose-800 px-2.5 py-1 font-mono text-[11px] text-rose-200"
             dir="ltr"
           >
             Protected paths: {cfg.preserveDataPaths}
@@ -385,17 +600,21 @@ export function SystemUpdaterPanel({
           </div>
           <div
             className={`text-sm font-semibold flex items-center gap-1.5 ${
-              cfg.lastStatus === "FAILED"
+              cfg.lastStatus === "FAILED" || cfg.lastStatus === "ERROR"
                 ? "text-rose-700"
-                : cfg.lastStatus === "RESTART_REQUIRED"
-                  ? "text-amber-700"
-                  : cfg.lastStatus === "SUCCESS" || cfg.lastStatus === "UP_TO_DATE"
-                    ? "text-emerald-700"
-                    : "text-foreground"
+                : cfg.lastStatus === "UPDATING"
+                  ? "text-sky-700 dark:text-sky-400"
+                  : cfg.lastStatus === "RESTART_REQUIRED"
+                    ? "text-amber-700"
+                    : cfg.lastStatus === "SUCCESS" || cfg.lastStatus === "UP_TO_DATE"
+                      ? "text-emerald-700"
+                      : "text-foreground"
             }`}
           >
-            {cfg.lastStatus === "FAILED" ? (
+            {cfg.lastStatus === "FAILED" || cfg.lastStatus === "ERROR" ? (
               <XCircle className="size-4" />
+            ) : cfg.lastStatus === "UPDATING" ? (
+              <Loader2 className="size-4 animate-spin text-sky-600" />
             ) : cfg.lastStatus === "RESTART_REQUIRED" ? (
               <AlertTriangle className="size-4 text-amber-600" />
             ) : (
@@ -481,10 +700,32 @@ export function SystemUpdaterPanel({
           </div>
         )}
 
+        {isPolling && (
+          <div className="rounded-md border border-sky-300 bg-sky-50/70 dark:bg-sky-950/30 px-3.5 py-2.5 text-xs text-sky-900 dark:text-sky-200 flex items-center gap-2.5">
+            <Loader2 className="size-4 animate-spin text-sky-600 shrink-0" />
+            <div className="min-w-0">
+              <div className="font-semibold">
+                {reconnecting
+                  ? fa
+                    ? "در حال جابجایی سرور بدون قطعی (سوئیچ Blue-Green)..."
+                    : "Switching live server worker (zero-downtime reload)..."
+                  : fa
+                    ? "بروزرسانی خودکار در حال اجراست..."
+                    : "Automatic update running..."}
+              </div>
+              {data.logs.find((l) => l.status === "UPDATING")?.summary && (
+                <div className="opacity-90 truncate">
+                  {data.logs.find((l) => l.status === "UPDATING")?.summary}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         <div className="flex flex-wrap items-center gap-3">
           <button
             type="button"
-            disabled={Boolean(busyAction)}
+            disabled={Boolean(busyAction) || isPolling}
             onClick={() => void runAction("check")}
             className="inline-flex min-h-[42px] items-center gap-2 rounded-md border border-border bg-background px-4 text-xs font-medium hover:bg-secondary disabled:opacity-50"
           >
@@ -498,11 +739,11 @@ export function SystemUpdaterPanel({
 
           <button
             type="button"
-            disabled={Boolean(busyAction)}
+            disabled={Boolean(busyAction) || isPolling}
             onClick={() => void runAction("apply")}
             className="inline-flex min-h-[42px] items-center gap-2 rounded-md bg-foreground text-background px-5 text-xs font-medium hover:opacity-90 disabled:opacity-50"
           >
-            {busyAction === "apply" ? (
+            {isUpdating ? (
               <Loader2 className="size-4 animate-spin" />
             ) : (
               <Rocket className="size-4" />
@@ -512,7 +753,7 @@ export function SystemUpdaterPanel({
 
           <button
             type="button"
-            disabled={Boolean(busyAction)}
+            disabled={Boolean(busyAction) || isPolling}
             onClick={() => void runAction("snapshot")}
             className="inline-flex min-h-[42px] items-center gap-2 rounded-md border border-border bg-background px-4 text-xs font-medium hover:bg-secondary disabled:opacity-50"
           >
@@ -778,10 +1019,17 @@ export function SystemUpdaterPanel({
                           ? "text-emerald-700"
                           : log.status === "FAILED"
                             ? "text-rose-700"
-                            : "text-amber-700"
+                            : log.status === "UPDATING"
+                              ? "text-sky-700 dark:text-sky-400"
+                              : "text-amber-700"
                       }`}
                     >
-                      {log.status}
+                      <span className="inline-flex items-center gap-1.5">
+                        {log.status === "UPDATING" && (
+                          <Loader2 className="size-3 animate-spin" />
+                        )}
+                        <span>{log.status}</span>
+                      </span>
                     </td>
                     <td className="py-3 px-4 max-w-sm">
                       <div>{log.summary || "—"}</div>
@@ -799,7 +1047,7 @@ export function SystemUpdaterPanel({
                       {log.hasBackup ? (
                         <button
                           type="button"
-                          disabled={Boolean(busyAction)}
+                          disabled={Boolean(busyAction) || isPolling}
                           onClick={() => void runAction("rollback", log.id)}
                           className="inline-flex min-h-[32px] items-center gap-1 rounded border border-border px-2.5 text-[11px] font-medium hover:bg-secondary disabled:opacity-50"
                         >

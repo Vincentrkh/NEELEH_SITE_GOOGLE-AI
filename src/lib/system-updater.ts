@@ -222,6 +222,7 @@ async function execCmd(
     cwd: opts.cwd,
     env: opts.env,
     timeout: opts.timeout,
+    maxBuffer: 16 * 1024 * 1024,
     shell: IS_WIN && (cmd === "npm" || cmd === "npx" || cmd === "pm2"),
   });
 }
@@ -264,6 +265,8 @@ export async function createPreUpdateSnapshot(): Promise<string> {
 export async function checkForRemoteUpdates(params: {
   trigger: "MANUAL" | "SCHEDULED" | "WEBHOOK";
   actorId?: string | null;
+  skipLog?: boolean;
+  preserveStatus?: boolean;
 }) {
   const startedAt = Date.now();
   const cfg = await ensureUpdateConfig();
@@ -382,24 +385,26 @@ export async function checkForRemoteUpdates(params: {
         remoteCommitDate: commitDate,
         pendingUpdatesCount: updateAvailable ? 1 : 0,
         lastCheckedAt: new Date(),
-        lastStatus: nextStatus,
+        ...(params.preserveStatus ? {} : { lastStatus: nextStatus }),
         lastError: null,
       },
     });
 
-    await db.systemUpdateLog.create({
-      data: {
-        trigger: params.trigger,
-        status: updateAvailable ? "UPDATE_AVAILABLE" : "UP_TO_DATE",
-        fromCommit: cfg.currentCommit,
-        toCommit: remoteSha,
-        summary: updateAvailable
-          ? `بروزرسانی جدید شناسایی شد (${remoteSha}): ${commitMessage}`
-          : `سیستم به‌روز است (${remoteSha})`,
-        durationMs: Date.now() - startedAt,
-        actorId: params.actorId ?? null,
-      },
-    });
+    if (!params.skipLog) {
+      await db.systemUpdateLog.create({
+        data: {
+          trigger: params.trigger,
+          status: updateAvailable ? "UPDATE_AVAILABLE" : "UP_TO_DATE",
+          fromCommit: cfg.currentCommit,
+          toCommit: remoteSha,
+          summary: updateAvailable
+            ? `بروزرسانی جدید شناسایی شد (${remoteSha}): ${commitMessage}`
+            : `سیستم به‌روز است (${remoteSha})`,
+          durationMs: Date.now() - startedAt,
+          actorId: params.actorId ?? null,
+        },
+      });
+    }
 
     return {
       ok: true,
@@ -417,17 +422,19 @@ export async function checkForRemoteUpdates(params: {
         lastError: msg.slice(0, 240),
       },
     });
-    await db.systemUpdateLog.create({
-      data: {
-        trigger: params.trigger,
-        status: "FAILED",
-        fromCommit: cfg.currentCommit,
-        summary: "خطا در بررسی مخزن گیت",
-        errorMessage: msg.slice(0, 240),
-        durationMs: Date.now() - startedAt,
-        actorId: params.actorId ?? null,
-      },
-    });
+    if (!params.skipLog) {
+      await db.systemUpdateLog.create({
+        data: {
+          trigger: params.trigger,
+          status: "FAILED",
+          fromCommit: cfg.currentCommit,
+          summary: "خطا در بررسی مخزن گیت",
+          errorMessage: msg.slice(0, 240),
+          durationMs: Date.now() - startedAt,
+          actorId: params.actorId ?? null,
+        },
+      });
+    }
     return { ok: false, error: msg, errorEn: msg };
   }
 }
@@ -492,21 +499,75 @@ async function detectPm2AppName(): Promise<string | null> {
  * 5. In production, runs `npm run build` (`.next` + `.next/standalone`) and triggers PM2/custom reload when available.
  *    Honestly reports whether live traffic was reloaded or requires a server restart / re-publish.
  */
+async function updateStageLog(logId: string | null, summary: string, toCommit?: string | null) {
+  if (!logId) return;
+  await db.systemUpdateLog
+    .update({
+      where: { id: logId },
+      data: {
+        summary: summary.slice(0, 350),
+        ...(toCommit ? { toCommit } : {}),
+      },
+    })
+    .catch(() => {});
+}
+
 export async function applyZeroDowntimeUpdate(params: {
   trigger: "MANUAL" | "SCHEDULED" | "WEBHOOK";
   actorId?: string | null;
+  existingLogId?: string | null;
 }) {
   const startedAt = Date.now();
   const cfg = await ensureUpdateConfig();
+  let activeLogId: string | null = params.existingLogId ?? null;
 
-  const checkRes = await checkForRemoteUpdates(params);
+  await updateStageLog(activeLogId, "۰/۴ در حال بررسی آخرین تغییرات مخزن گیت...");
+  const checkRes = await checkForRemoteUpdates({
+    ...params,
+    skipLog: true,
+    preserveStatus: true,
+  });
   if (!checkRes.ok) {
+    const errMsg = ("error" in checkRes && checkRes.error) ? String(checkRes.error) : "بررسی مخزن ناموفق بود";
+    await db.systemUpdateConfig.update({
+      where: { id: cfg.id },
+      data: { lastStatus: "ERROR", lastError: errMsg.slice(0, 240) },
+    }).catch(() => {});
+    if (activeLogId) {
+      await db.systemUpdateLog
+        .update({
+          where: { id: activeLogId },
+          data: {
+            status: "FAILED",
+            summary: "خطا در بررسی مخزن گیت",
+            errorMessage: errMsg.slice(0, 240),
+            durationMs: Date.now() - startedAt,
+          },
+        })
+        .catch(() => {});
+    }
     return checkRes;
   }
 
   const freshCfg = await ensureUpdateConfig();
   const targetCommit = freshCfg.remoteCommit || checkRes.remoteCommit || "";
   if (!targetCommit) {
+    await db.systemUpdateConfig.update({
+      where: { id: freshCfg.id },
+      data: { lastStatus: "ERROR", lastError: "Remote commit hash unavailable." },
+    }).catch(() => {});
+    if (activeLogId) {
+      await db.systemUpdateLog
+        .update({
+          where: { id: activeLogId },
+          data: {
+            status: "FAILED",
+            summary: "شناسه کامیت مقصد در دسترس نیست.",
+            durationMs: Date.now() - startedAt,
+          },
+        })
+        .catch(() => {});
+    }
     return {
       ok: false,
       error: "شناسه کامیت مقصد در دسترس نیست.",
@@ -519,6 +580,23 @@ export async function applyZeroDowntimeUpdate(params: {
   const hasGitDir = fs.existsSync(path.join(root, ".git"));
   const repoCheck = validateGitRepoUrl(freshCfg.repoUrl);
   if (!repoCheck.ok) {
+    await db.systemUpdateConfig.update({
+      where: { id: freshCfg.id },
+      data: { lastStatus: "ERROR", lastError: repoCheck.error.slice(0, 240) },
+    }).catch(() => {});
+    if (activeLogId) {
+      await db.systemUpdateLog
+        .update({
+          where: { id: activeLogId },
+          data: {
+            status: "FAILED",
+            summary: "آدرس مخزن گیت نامعتبر است.",
+            errorMessage: repoCheck.error.slice(0, 240),
+            durationMs: Date.now() - startedAt,
+          },
+        })
+        .catch(() => {});
+    }
     return { ok: false, error: repoCheck.error, errorEn: repoCheck.error };
   }
   const dbToken = freshCfg.authMethod === "PAT" ? decryptSecret(freshCfg.encryptedToken) : "";
@@ -533,9 +611,34 @@ export async function applyZeroDowntimeUpdate(params: {
     data: { lastStatus: "UPDATING", lastError: null },
   });
 
+  if (!activeLogId) {
+    const created = await db.systemUpdateLog.create({
+      data: {
+        trigger: params.trigger,
+        status: "UPDATING",
+        fromCommit: freshCfg.currentCommit,
+        toCommit: targetCommit,
+        summary: `۱/۴ در حال تهیه بکاپ فوری پیش از بروزرسانی (${targetCommit})...`,
+        durationMs: 0,
+        actorId: params.actorId ?? null,
+      },
+    });
+    activeLogId = created.id;
+  } else {
+    await updateStageLog(
+      activeLogId,
+      `۱/۴ در حال تهیه بکاپ فوری پیش از بروزرسانی (${targetCommit})...`,
+      targetCommit,
+    );
+  }
+
   try {
     // Step 1: Mandatory pre-update data backup
     backupPath = await createPreUpdateSnapshot();
+    await updateStageLog(
+      activeLogId,
+      `۲/۴ در حال دریافت و همگام‌سازی فایل‌ها از مخزن گیت (${targetCommit})...`,
+    );
 
     const pkgHashBefore = await sha256File(path.join(root, "package.json"));
     const schemaHashBefore = await sha256File(path.join(root, "prisma", "schema.prisma"));
@@ -726,6 +829,7 @@ export async function applyZeroDowntimeUpdate(params: {
     }
 
     // Step 3A: Install dependencies only if package.json changed
+    await updateStageLog(activeLogId, "۳/۴ در حال بررسی وابستگی‌ها و همگام‌سازی دیتابیس...");
     const pkgHashAfter = await sha256File(path.join(root, "package.json"));
     if (pkgHashAfter && pkgHashAfter !== pkgHashBefore) {
       await execCmd("npm", ["install", "--no-audit", "--no-fund"], {
@@ -789,6 +893,11 @@ export async function applyZeroDowntimeUpdate(params: {
         const currentDist = readActiveDist(root);
         buildDistDir = currentDist === ".next" ? ".next-blue" : ".next";
       }
+
+      await updateStageLog(
+        activeLogId,
+        `۴/۴ در حال ساخت بیلد تولیدی (${buildDistDir}) و آماده‌سازی ریلود خودکار...`,
+      );
 
       await execCmd("npm", ["run", "build"], {
         cwd: root,
@@ -881,16 +990,15 @@ export async function applyZeroDowntimeUpdate(params: {
       },
     });
 
-    await db.systemUpdateLog.create({
+    await db.systemUpdateLog.update({
+      where: { id: activeLogId },
       data: {
-        trigger: params.trigger,
         status: needsRestart ? "RESTART_REQUIRED" : "SUCCESS",
         fromCommit: freshCfg.currentCommit,
         toCommit: targetCommit,
         backupPath,
         summary: summary.slice(0, 350),
         durationMs: Date.now() - startedAt,
-        actorId: params.actorId ?? null,
       },
     });
 
@@ -941,21 +1049,126 @@ export async function applyZeroDowntimeUpdate(params: {
         lastError: msg.slice(0, 240),
       },
     });
-    await db.systemUpdateLog.create({
-      data: {
-        trigger: params.trigger,
-        status: "FAILED",
-        fromCommit: freshCfg.currentCommit,
-        toCommit: targetCommit,
-        backupPath: backupPath || null,
-        summary: "بروزرسانی متوقف شد — دیتابیس و نسخه فعلی بدون تغییر حفظ شدند.",
-        errorMessage: msg.slice(0, 240),
-        durationMs: Date.now() - startedAt,
-        actorId: params.actorId ?? null,
-      },
-    });
+    if (activeLogId) {
+      await db.systemUpdateLog
+        .update({
+          where: { id: activeLogId },
+          data: {
+            status: "FAILED",
+            fromCommit: freshCfg.currentCommit,
+            toCommit: targetCommit,
+            backupPath: backupPath || null,
+            summary: "بروزرسانی متوقف شد — دیتابیس و نسخه فعلی بدون تغییر حفظ شدند.",
+            errorMessage: msg.slice(0, 240),
+            durationMs: Date.now() - startedAt,
+          },
+        })
+        .catch(() => {});
+    }
     return { ok: false, error: msg, errorEn: msg };
   }
+}
+
+const globalForUpdateJob = globalThis as unknown as {
+  __neelehManualUpdateInFlight?: { startedAt: number; logId: string } | null;
+};
+
+/**
+ * Starts the update pipeline asynchronously so long `npm run build` runs never
+ * hit reverse-proxy / browser HTTP request timeouts (502/504).
+ */
+export async function startBackgroundUpdate(params: {
+  trigger: "MANUAL" | "SCHEDULED" | "WEBHOOK";
+  actorId?: string | null;
+  onFinished?: () => void;
+}) {
+  const cfg = await ensureUpdateConfig();
+  if (!cfg.repoUrl.trim()) {
+    return {
+      ok: false,
+      error: "آدرس مخزن گیت تنظیم نشده است.",
+      errorEn: "Git repository URL is not configured.",
+    };
+  }
+  const repoCheck = validateGitRepoUrl(cfg.repoUrl);
+  if (!repoCheck.ok) {
+    return { ok: false, error: repoCheck.error, errorEn: repoCheck.error };
+  }
+  if (!validateGitBranchName(cfg.branch)) {
+    return { ok: false, error: "نام شاخه (Branch) نامعتبر است.", errorEn: "Invalid branch name." };
+  }
+
+  const inFlight = globalForUpdateJob.__neelehManualUpdateInFlight;
+  if (inFlight && Date.now() - inFlight.startedAt < 5 * 60_000) {
+    return {
+      ok: true,
+      started: true,
+      alreadyRunning: true,
+      logId: inFlight.logId,
+      message: "یک عملیات بروزرسانی در حال اجراست...",
+    };
+  }
+
+  // Mark any orphaned older UPDATING logs as FAILED before starting a fresh run
+  await db.systemUpdateLog
+    .updateMany({
+      where: { status: "UPDATING" },
+      data: {
+        status: "FAILED",
+        summary: "عملیات قبلی ناتمام متوقف شد.",
+        errorMessage: "Interrupted before completion (server restarted or timed out).",
+      },
+    })
+    .catch(() => {});
+
+  await db.systemUpdateConfig.update({
+    where: { id: cfg.id },
+    data: { lastStatus: "UPDATING", lastError: null },
+  });
+
+  const log = await db.systemUpdateLog.create({
+    data: {
+      trigger: params.trigger,
+      status: "UPDATING",
+      fromCommit: cfg.currentCommit,
+      toCommit: cfg.remoteCommit,
+      summary: "۰/۴ شروع عملیات بروزرسانی خودکار...",
+      durationMs: 0,
+      actorId: params.actorId ?? null,
+    },
+  });
+
+  globalForUpdateJob.__neelehManualUpdateInFlight = {
+    startedAt: Date.now(),
+    logId: log.id,
+  };
+
+  setTimeout(() => {
+    void applyZeroDowntimeUpdate({
+      trigger: params.trigger,
+      actorId: params.actorId,
+      existingLogId: log.id,
+    })
+      .then(() => {
+        try {
+          params.onFinished?.();
+        } catch {
+          // ignore
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        globalForUpdateJob.__neelehManualUpdateInFlight = null;
+      });
+  }, 15);
+
+  return {
+    ok: true,
+    started: true,
+    alreadyRunning: false,
+    logId: log.id,
+    message: "فرآیند بروزرسانی، بکاپ‌گیری و بیلد خودکار آغاز شد...",
+  };
 }
 
 export async function rollbackDatabaseFromLog(logId: string, actorId: string) {

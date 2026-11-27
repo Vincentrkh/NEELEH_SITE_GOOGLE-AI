@@ -10,12 +10,12 @@ import {
   validateGitRepoUrl,
 } from "@/lib/crypto-vault";
 import {
-  applyZeroDowntimeUpdate,
   checkForRemoteUpdates,
   createPreUpdateSnapshot,
   ensureUpdateConfig,
   getSafeUpdateStatus,
   rollbackDatabaseFromLog,
+  startBackgroundUpdate,
 } from "@/lib/system-updater";
 
 export const dynamic = "force-dynamic";
@@ -136,14 +136,17 @@ export async function POST(req: NextRequest) {
   }
 
   if (body.action === "apply") {
-    const res = await applyZeroDowntimeUpdate({ trigger: "MANUAL", actorId: admin.id });
-    if (res.ok) {
-      try {
-        revalidatePath("/", "layout");
-      } catch {
-        // ignore outside request cache
-      }
-    }
+    const res = await startBackgroundUpdate({
+      trigger: "MANUAL",
+      actorId: admin.id,
+      onFinished: () => {
+        try {
+          revalidatePath("/", "layout");
+        } catch {
+          // ignore outside request cache
+        }
+      },
+    });
     const status = await getSafeUpdateStatus();
     return NextResponse.json({ ...res, ...status }, { status: res.ok ? 200 : 400 });
   }
