@@ -279,9 +279,9 @@ export function SystemUpdaterPanel({
   return (
     <div className="space-y-8">
       {/* Zero-Downtime & Data Preservation Banner */}
-      <div className="rounded-lg border border-sky-800/80 bg-sky-950 p-4 sm:p-5 text-sky-50 shadow-sm dark:border-sky-700/80 dark:bg-sky-950/95 flex items-start gap-3.5">
-        <div className="rounded-md bg-sky-400/15 border border-sky-400/30 p-2 shrink-0 mt-0.5">
-          <ShieldCheck className="size-4 text-sky-300" />
+      <div className="rounded-lg border border-emerald-800/80 bg-emerald-950 p-4 sm:p-5 text-emerald-50 shadow-sm dark:border-emerald-700/80 dark:bg-emerald-950/95 flex items-start gap-3.5">
+        <div className="rounded-md bg-emerald-400/15 border border-emerald-400/30 p-2 shrink-0 mt-0.5">
+          <ShieldCheck className="size-4 text-emerald-300" />
         </div>
         <div className="space-y-2 text-xs leading-relaxed flex-1 min-w-0">
           <div className="font-semibold text-sm text-white">
@@ -289,19 +289,19 @@ export function SystemUpdaterPanel({
               ? "تضمین حفظ ۱۰۰٪ داده‌ها و بدون قطعی برای کاربران"
               : "100% Data Preservation & Zero-Downtime Guarantee"}
           </div>
-          <p className="text-sky-100/90">
+          <p className="text-emerald-100/90">
             {fa ? (
               <>
                 پیش از هر بروزرسانی، یک بکاپ فوری در سرور گرفته می‌شود و فایل‌های دیتابیس{" "}
-                <code dir="ltr" className="mx-0.5 rounded bg-sky-900/80 px-1.5 py-0.5 font-mono text-[11px] text-sky-200">
+                <code dir="ltr" className="mx-0.5 rounded bg-emerald-900/80 px-1.5 py-0.5 font-mono text-[11px] text-emerald-200">
                   db/custom.db
                 </code>
                 ، فایل‌های آپلودشده کاربران{" "}
-                <code dir="ltr" className="mx-0.5 rounded bg-sky-900/80 px-1.5 py-0.5 font-mono text-[11px] text-sky-200">
+                <code dir="ltr" className="mx-0.5 rounded bg-emerald-900/80 px-1.5 py-0.5 font-mono text-[11px] text-emerald-200">
                   public/uploads/
                 </code>
                 ، متغیرهای محیطی{" "}
-                <code dir="ltr" className="mx-0.5 rounded bg-sky-900/80 px-1.5 py-0.5 font-mono text-[11px] text-sky-200">
+                <code dir="ltr" className="mx-0.5 rounded bg-emerald-900/80 px-1.5 py-0.5 font-mono text-[11px] text-emerald-200">
                   .env
                 </code>{" "}
                 و کلید نشست‌ها دست‌نخورده باقی می‌مانند. همچنین اسکیمای دیتابیس فقط به‌صورت افزایشی همگام‌سازی می‌شود.
@@ -311,7 +311,7 @@ export function SystemUpdaterPanel({
             )}
           </p>
           <div
-            className="inline-block rounded bg-sky-900/60 border border-sky-800 px-2.5 py-1 font-mono text-[11px] text-sky-200"
+            className="inline-block rounded bg-emerald-900/60 border border-emerald-800 px-2.5 py-1 font-mono text-[11px] text-emerald-200"
             dir="ltr"
           >
             Protected paths: {cfg.preserveDataPaths}
