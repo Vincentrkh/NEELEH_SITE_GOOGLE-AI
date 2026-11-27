@@ -32,6 +32,8 @@ EXCLUDE_REL_PATHS = {
     ".env.production.local",
     ".env.development.local",
     "db/.session_secret",
+    "db/.supervisor.json",
+    "db/.reload-trigger",
     "db/backups",
 }
 

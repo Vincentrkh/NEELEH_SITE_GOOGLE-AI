@@ -64,11 +64,14 @@ npx prisma generate
 echo "[neeleh-update] Building next production bundle..."
 npm run build
 
-if command -v pm2 >/dev/null 2>&1; then
+if [ -f "db/.supervisor.json" ]; then
+  echo "[neeleh-update] Triggering zero-downtime blue-green reload via supervisor..."
+  printf '{"commit":"%s","triggeredAt":"%s"}\n' "$REMOTE_SHA" "$(date -Iseconds)" > db/.reload-trigger
+elif command -v pm2 >/dev/null 2>&1; then
   echo "[neeleh-update] Reloading PM2 cluster gracefully (0ms downtime)..."
   pm2 reload "$PM2_APP" --update-env
 else
-  echo "[neeleh-update] Build ready. Restart your process manager to serve $REMOTE_SHA."
+  echo "[neeleh-update] Build ready. Start the server with 'npm run start' to enable automatic zero-downtime reloads."
 fi
 
 echo "[neeleh-update] Successfully updated $LOCAL_SHA -> $REMOTE_SHA."

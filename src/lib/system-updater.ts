@@ -82,6 +82,7 @@ export async function getSafeUpdateStatus() {
   const isProduction = process.env.NODE_ENV === "production";
   const isCloudRun = Boolean(process.env.K_SERVICE || process.env.K_REVISION);
   const hasPm2 = Boolean(process.env.pm_id !== undefined || process.env.PM2_HOME);
+  const hasSupervisor = isSupervisorActive(root);
   let pkgVersion = "0.2.1";
   try {
     const pkg = JSON.parse(
@@ -123,6 +124,8 @@ export async function getSafeUpdateStatus() {
       runtimeMode: isProduction ? "production" : "development",
       isCloudRun,
       hasPm2,
+      hasSupervisor,
+      platform: process.platform,
     },
     logs: logs.map((l) => ({
       id: l.id,
@@ -139,16 +142,78 @@ export async function getSafeUpdateStatus() {
   };
 }
 
+const IS_WIN = process.platform === "win32";
+
+function isSupervisorActive(root: string): boolean {
+  const envPid = Number(process.env.NEELEH_SUPERVISOR_PID || 0);
+  const candidates: number[] = [];
+  if (envPid > 0) candidates.push(envPid);
+  try {
+    const metaPath = path.join(root, "db", ".supervisor.json");
+    if (fs.existsSync(metaPath)) {
+      const parsed = JSON.parse(fs.readFileSync(metaPath, "utf8")) as { pid?: number };
+      if (parsed.pid && parsed.pid > 0) candidates.push(parsed.pid);
+    }
+  } catch {
+    // ignore
+  }
+  for (const pid of candidates) {
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch {
+      // process not running
+    }
+  }
+  return false;
+}
+
+async function execCmd(
+  cmd: string,
+  args: string[],
+  opts: { cwd?: string; env?: NodeJS.ProcessEnv; timeout?: number } = {},
+) {
+  return execFileAsync(cmd, args, {
+    cwd: opts.cwd,
+    env: opts.env,
+    timeout: opts.timeout,
+    shell: IS_WIN && (cmd === "npm" || cmd === "npx" || cmd === "pm2"),
+  });
+}
+
 export async function createPreUpdateSnapshot(): Promise<string> {
   const root = resolveAppRoot();
   await fs.promises.mkdir(UPDATE_BACKUP_DIR, { recursive: true });
   const zipPath = path.join(UPDATE_BACKUP_DIR, `pre-update-${Date.now()}.zip`);
   const scriptPath = path.join(root, "scripts", "create-backup-zip.py");
-  await execFileAsync("/usr/bin/python3", [scriptPath, zipPath], {
-    cwd: root,
-    timeout: 120_000,
-  });
-  return zipPath;
+
+  for (const py of IS_WIN ? ["python", "python3"] : ["python3", "python"]) {
+    try {
+      await execFileAsync(py, [scriptPath, zipPath], { cwd: root, timeout: 120_000 });
+      return zipPath;
+    } catch {
+      // try next python binary or PowerShell fallback
+    }
+  }
+
+  if (IS_WIN) {
+    const safeTargets = ["src", "prisma", "public", "scripts", "package.json", "db\\custom.db"]
+      .filter((rel) => fs.existsSync(path.join(root, rel)))
+      .map((rel) => `'${rel}'`)
+      .join(", ");
+    await execFileAsync(
+      "powershell",
+      [
+        "-NoProfile",
+        "-Command",
+        `Compress-Archive -Path ${safeTargets} -DestinationPath '${zipPath.replace(/'/g, "''")}' -Force`,
+      ],
+      { cwd: root, timeout: 120_000 },
+    );
+    return zipPath;
+  }
+
+  throw new Error("Python 3 is required to create pre-update archive.");
 }
 
 export async function checkForRemoteUpdates(params: {
@@ -245,8 +310,8 @@ export async function checkForRemoteUpdates(params: {
         env.GIT_CONFIG_KEY_0 = "http.extraHeader";
         env.GIT_CONFIG_VALUE_0 = `Authorization: Basic ${basic}`;
       }
-      const { stdout } = await execFileAsync(
-        "/usr/bin/git",
+      const { stdout } = await execCmd(
+        "git",
         ["ls-remote", repoCheck.normalized, `refs/heads/${cfg.branch}`],
         { env, timeout: 15_000 },
       );
@@ -364,7 +429,7 @@ async function detectPm2AppName(): Promise<string | null> {
   if (process.env.PM2_APP_NAME?.trim()) return process.env.PM2_APP_NAME.trim();
   if (process.env.name?.trim()) return process.env.name.trim();
   try {
-    const { stdout } = await execFileAsync("pm2", ["jlist"], { timeout: 5_000 });
+    const { stdout } = await execCmd("pm2", ["jlist"], { timeout: 5_000 });
     const list = JSON.parse(stdout) as Array<{ name?: string; pid?: number }>;
     const match = list.find((item) => item.pid === process.pid);
     return match?.name || list[0]?.name || null;
@@ -443,13 +508,13 @@ export async function applyZeroDowntimeUpdate(params: {
         env.GIT_CONFIG_KEY_0 = "http.extraHeader";
         env.GIT_CONFIG_VALUE_0 = `Authorization: Basic ${basic}`;
       }
-      await execFileAsync(
-        "/usr/bin/git",
+      await execCmd(
+        "git",
         ["fetch", repoCheck.normalized, freshCfg.branch],
         { cwd: root, env, timeout: 60_000 },
       );
-      const { stdout: diffOut } = await execFileAsync(
-        "/usr/bin/git",
+      const { stdout: diffOut } = await execCmd(
+        "git",
         ["diff", "--name-only", "HEAD", "FETCH_HEAD"],
         { cwd: root, env, timeout: 15_000 },
       ).catch(() => ({ stdout: "" }));
@@ -457,8 +522,8 @@ export async function applyZeroDowntimeUpdate(params: {
         const clean = line.trim();
         if (clean) changedFiles.push(clean);
       }
-      await execFileAsync(
-        "/usr/bin/git",
+      await execCmd(
+        "git",
         ["checkout", "-B", freshCfg.branch, "FETCH_HEAD"],
         { cwd: root, env, timeout: 30_000 },
       );
@@ -500,8 +565,8 @@ export async function applyZeroDowntimeUpdate(params: {
           const buf = Buffer.from(await res.arrayBuffer());
           const tarFile = path.join(stagingDir, "release.tar.gz");
           await fs.promises.writeFile(tarFile, buf);
-          await execFileAsync(
-            "/bin/tar",
+          await execCmd(
+            "tar",
             ["-xzf", tarFile, "-C", extractDir, "--strip-components=1"],
             { timeout: 30_000 },
           );
@@ -517,8 +582,8 @@ export async function applyZeroDowntimeUpdate(params: {
             env.GIT_CONFIG_KEY_0 = "http.extraHeader";
             env.GIT_CONFIG_VALUE_0 = `Authorization: Basic ${basic}`;
           }
-          await execFileAsync(
-            "/usr/bin/git",
+          await execCmd(
+            "git",
             ["clone", "--depth", "1", "--branch", freshCfg.branch, repoCheck.normalized, extractDir],
             { env, timeout: 60_000 },
           );
@@ -562,7 +627,7 @@ export async function applyZeroDowntimeUpdate(params: {
     // Step 3A: Install dependencies only if package.json changed
     const pkgHashAfter = await sha256File(path.join(root, "package.json"));
     if (pkgHashAfter && pkgHashAfter !== pkgHashBefore) {
-      await execFileAsync("npm", ["install", "--no-audit", "--no-fund"], {
+      await execCmd("npm", ["install", "--no-audit", "--no-fund"], {
         cwd: root,
         timeout: 180_000,
       });
@@ -571,47 +636,62 @@ export async function applyZeroDowntimeUpdate(params: {
     // Step 3B: Safe additive schema sync & Prisma client regen
     const schemaHashAfter = await sha256File(path.join(root, "prisma", "schema.prisma"));
     if (schemaHashAfter && schemaHashAfter !== schemaHashBefore) {
-      await execFileAsync("npx", ["prisma", "db", "push"], {
+      await execCmd("npx", ["prisma", "db", "push"], {
         cwd: root,
         timeout: 90_000,
       });
-      await execFileAsync("npx", ["prisma", "generate"], {
+      await execCmd("npx", ["prisma", "generate"], {
         cwd: root,
         timeout: 90_000,
       });
     } else {
-      await execFileAsync("npx", ["prisma", "db", "push"], {
+      await execCmd("npx", ["prisma", "db", "push"], {
         cwd: root,
         timeout: 60_000,
       }).catch(() => {});
     }
 
-    // Step 4: Production build & reload handling
+    // Step 4: Production build & zero-downtime reload handling
     let built = false;
     let reloaded = false;
-    let reloadMethod: "dev-live" | "pm2" | "custom" | "restart-required" = "dev-live";
+    let reloadMethod: "dev-live" | "supervisor" | "pm2" | "custom" | "restart-required" = "dev-live";
 
     if (isProduction) {
-      await execFileAsync("npm", ["run", "build"], {
+      await execCmd("npm", ["run", "build"], {
         cwd: root,
         timeout: 240_000,
       });
       built = true;
 
       const pm2Name = await detectPm2AppName();
+      const supervisorActive = isSupervisorActive(root);
       const customRestartCmd = process.env.UPDATE_RESTART_CMD?.trim();
 
       if (pm2Name) {
         reloadMethod = "pm2";
         reloaded = true;
         setTimeout(() => {
-          execFile("pm2", ["reload", pm2Name, "--update-env"], { cwd: root }, () => {});
+          void execCmd("pm2", ["reload", pm2Name, "--update-env"], { cwd: root }).catch(() => {});
         }, 700);
+      } else if (supervisorActive) {
+        reloadMethod = "supervisor";
+        reloaded = true;
+        const triggerFile = path.join(root, "db", ".reload-trigger");
+        await fs.promises.writeFile(
+          triggerFile,
+          JSON.stringify({ commit: targetCommit, triggeredAt: new Date().toISOString() }),
+          "utf8",
+        );
       } else if (customRestartCmd) {
         reloadMethod = "custom";
         reloaded = true;
         setTimeout(() => {
-          execFile("/bin/bash", ["-lc", customRestartCmd], { cwd: root }, () => {});
+          execFile(
+            IS_WIN ? "powershell" : "/bin/bash",
+            IS_WIN ? ["-NoProfile", "-Command", customRestartCmd] : ["-lc", customRestartCmd],
+            { cwd: root },
+            () => {},
+          );
         }, 700);
       } else {
         reloadMethod = "restart-required";
@@ -634,10 +714,13 @@ export async function applyZeroDowntimeUpdate(params: {
       userMessage = summary;
     } else if (needsRestart && isCloudRun) {
       summary = `${changedCount} فایل همگام‌سازی و بیلد شد (${targetCommit})، اما روی سرویس Cloud Run/Shared پیش‌نمایش برای اعمال روی ترافیک زنده باید Publish مجدد شود (${samplePaths}).`;
-      userMessage = `تغییرات (${changedCount} فایل) دریافت و بیلد شدند، اما در محیط Shared App (Cloud Run) فرآیند سرور به‌صورت خودکار ری‌استارت نمی‌شود؛ برای دیدن تغییر در سایت اصلی باید اپلیکیشن را دوباره Publish کنید یا روی سرور VPS با PM2 اجرا نمایید.`;
+      userMessage = `تغییرات (${changedCount} فایل) دریافت و بیلد شدند، اما در محیط Shared App (Cloud Run) فرآیند سرور به‌صورت خودکار ری‌استارت نمی‌شود؛ برای دیدن تغییر در سایت اصلی باید اپلیکیشن را دوباره Publish کنید یا روی سرور با اسکریپت npm run start اجرا نمایید.`;
     } else if (needsRestart) {
-      summary = `${changedCount} فایل بروز شد و بیلد تولیدی ساخته شد (${targetCommit})؛ برای فعال‌سازی روی ترافیک زنده یک‌بار سرویس Node را ری‌استارت کنید.`;
-      userMessage = `${changedCount} فایل بروزرسانی و بیلد شدند. چون PM2 فعال نیست، برای اعمال فوری روی سایت اصلی یک‌بار سرویس سرور را ری‌استارت کنید.`;
+      summary = `${changedCount} فایل بروز شد و بیلد تولیدی ساخته شد (${targetCommit})؛ برای فعال‌سازی روی ترافیک زنده سرویس را با npm run start اجرا کنید یا یک‌بار ری‌استارت نمایید.`;
+      userMessage = `${changedCount} فایل بروزرسانی و بیلد شدند. چون سوپروایزر داخلی (npm run start) یا PM2 فعال نیست، یک‌بار سرویس سرور را ری‌استارت کنید.`;
+    } else if (isProduction && reloadMethod === "supervisor") {
+      summary = `${changedCount} فایل همگام‌سازی، بیلد و توسط سوپروایزر داخلی بدون قطعی جایگزین شد (${targetCommit}): ${samplePaths}`;
+      userMessage = `بروزرسانی کامل انجام شد (${changedCount} فایل تغییر یافت، بیلد جدید ساخته شد و سرویس بدون قطعی به‌طور خودکار ریلود شد).`;
     } else if (isProduction) {
       summary = `${changedCount} فایل همگام‌سازی، بیلد و بدون قطعی ریلود شد (${targetCommit}): ${samplePaths}`;
       userMessage = `بروزرسانی کامل انجام شد (${changedCount} فایل تغییر یافت، بیلد جدید ساخته شد و سرویس بدون قطعی ریلود شد).`;
@@ -725,19 +808,48 @@ export async function rollbackDatabaseFromLog(logId: string, actorId: string) {
   const extractTmp = path.join(os.tmpdir(), `neeleh-rollback-${Date.now()}`);
   try {
     await fs.promises.mkdir(extractTmp, { recursive: true });
-    await execFileAsync(
-      "/usr/bin/python3",
-      [
-        "-c",
-        "import sys, zipfile; z=zipfile.ZipFile(sys.argv[1]); z.extractall(sys.argv[2])",
-        resolved,
-        extractTmp,
-      ],
-      { timeout: 60_000 },
-    );
-    const extractedDb = path.join(extractTmp, "neeleh-academy", "db", "custom.db");
+    let extractedOk = false;
+    for (const py of IS_WIN ? ["python", "python3"] : ["python3", "python"]) {
+      try {
+        await execFileAsync(
+          py,
+          [
+            "-c",
+            "import sys, zipfile; z=zipfile.ZipFile(sys.argv[1]); z.extractall(sys.argv[2])",
+            resolved,
+            extractTmp,
+          ],
+          { timeout: 60_000 },
+        );
+        extractedOk = true;
+        break;
+      } catch {
+        // try next
+      }
+    }
+    if (!extractedOk && IS_WIN) {
+      await execFileAsync(
+        "powershell",
+        [
+          "-NoProfile",
+          "-Command",
+          `Expand-Archive -Path '${resolved.replace(/'/g, "''")}' -DestinationPath '${extractTmp.replace(/'/g, "''")}' -Force`,
+        ],
+        { timeout: 60_000 },
+      );
+      extractedOk = true;
+    }
+    if (!extractedOk) {
+      throw new Error("Could not extract backup zip archive.");
+    }
+    const candidates = [
+      path.join(extractTmp, "neeleh-academy", "db", "custom.db"),
+      path.join(extractTmp, "db", "custom.db"),
+      path.join(extractTmp, "custom.db"),
+    ];
+    const extractedDb = candidates.find((c) => fs.existsSync(c));
     const targetDb = path.join(root, "db", "custom.db");
-    if (fs.existsSync(extractedDb)) {
+    if (extractedDb) {
       await fs.promises.copyFile(extractedDb, targetDb);
     }
 

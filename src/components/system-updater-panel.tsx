@@ -54,6 +54,8 @@ export type UpdateStatusPayload = {
     runtimeMode?: "production" | "development";
     isCloudRun?: boolean;
     hasPm2?: boolean;
+    hasSupervisor?: boolean;
+    platform?: string;
   };
   logs: Array<{
     id: string;
@@ -399,17 +401,21 @@ export function SystemUpdaterPanel({
               (cfg.lastUpdatedAt
                 ? `${fa ? "آخرین آپدیت:" : "Updated:"} ${localeDateTime(lang, cfg.lastUpdatedAt)}`
                 : data.environment.runtimeMode === "production"
-                  ? data.environment.hasPm2
+                  ? data.environment.hasSupervisor
                     ? fa
-                      ? "محیط تولید (PM2 زنده)"
-                      : "Production (PM2 Live)"
-                    : data.environment.isCloudRun
+                      ? "محیط تولید (سوپروایزر بدون قطعی فعال)"
+                      : "Production (Zero-Downtime Supervisor)"
+                    : data.environment.hasPm2
                       ? fa
-                        ? "محیط پیش‌نمایش Shared (Cloud Run)"
-                        : "Shared Preview (Cloud Run)"
-                      : fa
-                        ? "محیط تولید (نیاز به ری‌استارت دستی)"
-                        : "Production (Manual restart)"
+                        ? "محیط تولید (PM2 زنده)"
+                        : "Production (PM2 Live)"
+                      : data.environment.isCloudRun
+                        ? fa
+                          ? "محیط پیش‌نمایش Shared (Cloud Run)"
+                          : "Shared Preview (Cloud Run)"
+                        : fa
+                          ? "محیط تولید (نیاز به ری‌استارت دستی)"
+                          : "Production (Manual restart)"
                   : fa
                     ? "محیط توسعه (اعمال آنی فایل‌ها)"
                     : "Development (Live sync)")}
@@ -419,17 +425,19 @@ export function SystemUpdaterPanel({
 
       {/* Primary Action Bar */}
       <div className="rounded-lg border border-border bg-card p-4 space-y-3">
-        {data.environment.runtimeMode === "production" && !data.environment.hasPm2 && (
+        {data.environment.runtimeMode === "production" &&
+          !data.environment.hasPm2 &&
+          !data.environment.hasSupervisor && (
           <div className="rounded-md border border-amber-300 bg-zinc-50 dark:bg-zinc-900 px-3.5 py-2.5 text-xs text-amber-900 dark:text-amber-300 flex items-start gap-2 leading-relaxed">
             <AlertTriangle className="size-4 text-amber-600 shrink-0 mt-0.5" />
             <span>
               {data.environment.isCloudRun
                 ? fa
-                  ? "توجه: سایت هم‌اکنون در محیط Shared App (Cloud Run) با بیلد ایستا اجرا می‌شود. بروزرسانی گیت فایل‌ها را همگام‌سازی و بیلد می‌کند، اما برای تغییر ترافیک زنده روی لینک Shared باید بعد از تغییر، دکمه Publish را بزنید یا سایت را روی سرور VPS با PM2 اجرا کنید."
-                  : "Note: Running in Cloud Run shared preview mode. Git sync rebuilds locally, but live Cloud Run traffic requires re-publishing or running on a VPS with PM2."
+                  ? "توجه: سایت هم‌اکنون در محیط Shared App (Cloud Run) با بیلد ایستا اجرا می‌شود. بروزرسانی گیت فایل‌ها را همگام‌سازی و بیلد می‌کند، اما برای تغییر ترافیک زنده روی لینک Shared باید بعد از تغییر، دکمه Publish را بزنید یا سایت را با npm run start روی سرور خود اجرا کنید."
+                  : "Note: Running in Cloud Run shared preview mode. Git sync rebuilds locally, but live Cloud Run traffic requires re-publishing or running npm run start on your host."
                 : fa
-                  ? "توجه: محیط تولید بدون PM2 فعال است؛ پس از بیلد جدید توسط آپدیتر، برای نمایش تغییرات در سایت اصلی سرویس سرور را یک‌بار ری‌استارت کنید."
-                  : "Note: Running in production without PM2. Restart the Node process once after an update build completes."}
+                  ? "توجه: سرور مستقیماً اجرا شده است و سوپروایزر رلود خودکار فعال نیست؛ برای رلود خودکار و بدون قطعی، سرور را یک‌بار با دستور npm run start راه‌اندازی کنید."
+                  : "Note: Server was started without the zero-downtime supervisor. Start with `npm run start` once to enable automatic zero-downtime reloads."}
             </span>
           </div>
         )}
@@ -699,26 +707,34 @@ export function SystemUpdaterPanel({
         </div>
       </form>
 
-      {/* Zero-Downtime VPS Cron Script Reference */}
+      {/* Zero-Downtime Server Rollout Scripts */}
       <div className="rounded-lg border border-border bg-card p-5 space-y-3">
         <div className="flex items-center gap-2 text-sm font-semibold">
           <Terminal className="size-4 text-muted-foreground" />
           <span>
             {fa
-              ? "اسکریپت بروزرسانی بدون قطعی سرور (VPS Atomic Blue-Green / PM2 Reload)"
-              : "Zero-Downtime Server Rollout Script"}
+              ? "اجرای بدون قطعی و اسکریپت‌های بروزرسانی خودکار (ویندوز و لینوکس)"
+              : "Zero-Downtime Supervisor & Server Rollout Scripts"}
           </span>
         </div>
         <p className="text-xs text-muted-foreground leading-relaxed">
           {fa
-            ? "روی سرور لینوکس می‌توانید از اسکریپت آماده scripts/zero-downtime-update.sh در Cronjob استفاده کنید تا بیلد بعدی قبل از تعویض نسخه آماده شود و کاربران در حین بروزرسانی هیچ خطا یا قطعی نبینند:"
-            : "Schedule scripts/zero-downtime-update.sh in cron to pre-build releases and reload seamlessly without dropping active visitor requests:"}
+            ? "با اجرای سرور از طریق دستور npm run start (اسکریپت داخلی scripts/prod-server.mjs)، سایت بدون نیاز به PM2 به‌صورت خودکار پس از هر بروزرسانی با روش Blue-Green و بدون قطعی ریلود می‌شود. برای زمان‌بندی دوره‌ای روی سرور می‌توانید از اسکریپت ویندوز یا لینوکس زیر استفاده کنید:"
+            : "Starting the app with `npm run start` activates the built-in Blue-Green supervisor (`scripts/prod-server.mjs`) for automatic zero-downtime reloads on Windows and Linux without requiring PM2:"}
         </p>
-        <div
-          dir="ltr"
-          className="rounded-md bg-secondary/50 border border-border px-3.5 py-2.5 text-xs font-mono overflow-x-auto"
-        >
-          */15 * * * * bash /var/www/neeleh/scripts/zero-downtime-update.sh &gt;&gt; /var/log/neeleh-update.log 2&gt;&amp;1
+        <div className="grid gap-2">
+          <pre
+            dir="ltr"
+            className="rounded-md bg-secondary/50 border border-border px-3.5 py-2.5 text-xs font-mono overflow-x-auto whitespace-pre-wrap"
+          >
+            {"# Windows PowerShell (Server start + periodic update script):\nnpm run start\npowershell -ExecutionPolicy Bypass -File scripts\\zero-downtime-update.ps1"}
+          </pre>
+          <pre
+            dir="ltr"
+            className="rounded-md bg-secondary/50 border border-border px-3.5 py-2.5 text-xs font-mono overflow-x-auto whitespace-pre-wrap"
+          >
+            {"# Linux Cron (every 15 mins):\n*/15 * * * * bash /var/www/neeleh/scripts/zero-downtime-update.sh >> /var/log/neeleh-update.log 2>&1"}
+          </pre>
         </div>
       </div>
 
