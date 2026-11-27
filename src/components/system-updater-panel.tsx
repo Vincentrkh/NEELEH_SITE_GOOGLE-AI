@@ -288,13 +288,27 @@ export function SystemUpdaterPanel({
         checkIntervalMins,
       }),
     });
-    const json = (await res.json()) as UpdateStatusPayload & { error?: string };
-    if (!res.ok) {
-      const errText = json.error || (fa ? "خطا در ذخیره تنظیمات مخزن" : "Failed to save repository config");
+    const rawText = await res.text();
+    let json: (UpdateStatusPayload & { error?: string }) | null = null;
+    try {
+      json = JSON.parse(rawText);
+    } catch {
+      const preview = rawText.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 180);
+      const errText = fa
+        ? `پاسخ نامعتبر هنگام ذخیره تنظیمات (کد ${res.status})`
+        : `Unexpected response saving config (HTTP ${res.status})`;
+      setFeedback({ kind: "error", text: errText, detail: preview || undefined });
+      toast({ title: errText, description: preview || undefined, variant: "destructive" });
+      return false;
+    }
+    if (!res.ok || !json) {
+      const errText =
+        json?.error ||
+        (fa ? "خطا در ذخیره تنظیمات مخزن" : "Failed to save repository config");
       setFeedback({ kind: "error", text: errText });
       toast({
         title: fa ? "خطا در ذخیره تنظیمات مخزن" : "Failed to save repository config",
-        description: json.error,
+        description: json?.error,
         variant: "destructive",
       });
       return false;
@@ -369,11 +383,12 @@ export function SystemUpdaterPanel({
       try {
         json = JSON.parse(rawText);
       } catch {
+        const preview = rawText.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 180);
         const errText = fa
           ? `پاسخ نامعتبر از سرور (کد ${res.status})`
           : `Unexpected server response (HTTP ${res.status})`;
-        setFeedback({ kind: "error", text: errText });
-        toast({ title: errText, variant: "destructive" });
+        setFeedback({ kind: "error", text: errText, detail: preview || undefined });
+        toast({ title: errText, description: preview || undefined, variant: "destructive" });
         return;
       }
 

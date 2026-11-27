@@ -13,10 +13,11 @@ $Branch = if ($env:DEPLOY_BRANCH) { $env:DEPLOY_BRANCH } else { "main" }
 $BackupDir = Join-Path $env:TEMP "neeleh-update-backups"
 New-Item -ItemType Directory -Force -Path $BackupDir | Out-Null
 
+$NormAppDir = $AppDir -replace "\\", "/"
 Write-Host "[neeleh-update] Checking remote branch '$Branch'..."
-git fetch origin $Branch --quiet
-$LocalSha = (git rev-parse HEAD).Trim()
-$RemoteSha = (git rev-parse "origin/$Branch").Trim()
+git -c safe.directory='*' -c "safe.directory=$NormAppDir" fetch origin $Branch --quiet
+$LocalSha = (git -c safe.directory='*' -c "safe.directory=$NormAppDir" rev-parse HEAD).Trim()
+$RemoteSha = (git -c safe.directory='*' -c "safe.directory=$NormAppDir" rev-parse "origin/$Branch").Trim()
 
 if ($LocalSha -eq $RemoteSha) {
     Write-Host "[neeleh-update] Already up to date ($LocalSha)."
@@ -44,7 +45,7 @@ try {
     if (Test-Path "public\uploads") { Copy-Item "public\uploads" (Join-Path $ProtectTmp "uploads") -Recurse -Force }
 
     Write-Host "[neeleh-update] Pulling $RemoteSha..."
-    git checkout -B $Branch "origin/$Branch" --quiet
+    git -c safe.directory='*' -c "safe.directory=$NormAppDir" checkout -B $Branch "origin/$Branch" --quiet
 
     New-Item -ItemType Directory -Force -Path "db", "public\uploads" | Out-Null
     if (Test-Path (Join-Path $ProtectTmp ".env")) { Copy-Item (Join-Path $ProtectTmp ".env") ".env" -Force }

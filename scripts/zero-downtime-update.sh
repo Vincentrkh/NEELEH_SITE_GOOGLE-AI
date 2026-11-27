@@ -14,10 +14,14 @@ PM2_APP="${PM2_APP_NAME:-neeleh}"
 BACKUP_DIR="/tmp/neeleh-update-backups"
 mkdir -p "$BACKUP_DIR"
 
+safe_git() {
+  git -c safe.directory='*' -c "safe.directory=$APP_DIR" "$@"
+}
+
 echo "[neeleh-update] Checking remote branch $BRANCH..."
-git fetch origin "$BRANCH" --quiet
-LOCAL_SHA="$(git rev-parse HEAD)"
-REMOTE_SHA="$(git rev-parse "origin/$BRANCH")"
+safe_git fetch origin "$BRANCH" --quiet
+LOCAL_SHA="$(safe_git rev-parse HEAD)"
+REMOTE_SHA="$(safe_git rev-parse "origin/$BRANCH")"
 
 if [ "$LOCAL_SHA" = "$REMOTE_SHA" ]; then
   echo "[neeleh-update] Already up to date ($LOCAL_SHA)."
@@ -43,7 +47,7 @@ cleanup() {
 trap cleanup EXIT
 
 echo "[neeleh-update] Pulling $REMOTE_SHA..."
-git checkout -B "$BRANCH" "origin/$BRANCH" --quiet
+safe_git checkout -B "$BRANCH" "origin/$BRANCH" --quiet
 
 # Restore protected data files strictly
 mkdir -p db public/uploads

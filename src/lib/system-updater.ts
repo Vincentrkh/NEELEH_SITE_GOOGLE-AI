@@ -227,6 +227,11 @@ async function execCmd(
   });
 }
 
+function buildGitArgs(root: string, args: string[]): string[] {
+  const normRoot = root.replace(/\\/g, "/");
+  return ["-c", "safe.directory=*", "-c", `safe.directory=${normRoot}`, ...args];
+}
+
 export async function createPreUpdateSnapshot(): Promise<string> {
   const root = resolveAppRoot();
   await fs.promises.mkdir(UPDATE_BACKUP_DIR, { recursive: true });
@@ -360,7 +365,7 @@ export async function checkForRemoteUpdates(params: {
       }
       const { stdout } = await execCmd(
         "git",
-        ["ls-remote", repoCheck.normalized, `refs/heads/${cfg.branch}`],
+        buildGitArgs(resolveAppRoot(), ["ls-remote", repoCheck.normalized, `refs/heads/${cfg.branch}`]),
         { env, timeout: 15_000 },
       );
       const firstLine = stdout.trim().split("\n")[0] ?? "";
@@ -657,6 +662,7 @@ export async function applyZeroDowntimeUpdate(params: {
       ".aistudio",
     ]);
 
+    let syncedViaNativeGit = false;
     if (hasGitDir) {
       // Step 2A: Native Git fetch + protected staging sync (never overwrites or locks db/ & public/uploads/ & .env)
       const env: NodeJS.ProcessEnv = {
@@ -669,35 +675,35 @@ export async function applyZeroDowntimeUpdate(params: {
         env.GIT_CONFIG_KEY_0 = "http.extraHeader";
         env.GIT_CONFIG_VALUE_0 = `Authorization: Basic ${basic}`;
       }
-      await execCmd(
-        "git",
-        ["fetch", repoCheck.normalized, freshCfg.branch],
-        { cwd: root, env, timeout: 60_000 },
-      );
-      const { stdout: statusOut } = await execCmd(
-        "git",
-        ["diff", "--name-status", "HEAD", "FETCH_HEAD"],
-        { cwd: root, env, timeout: 15_000 },
-      ).catch(() => ({ stdout: "" }));
-
-      const deletedRelPaths: string[] = [];
-      for (const rawLine of statusOut.split("\n")) {
-        const line = rawLine.trim();
-        if (!line) continue;
-        const parts = line.split(/\t+/);
-        if (parts[0]?.startsWith("D") && parts[1]) {
-          deletedRelPaths.push(parts[1].trim());
-        }
-      }
-
       const stagingDir = path.join(os.tmpdir(), `neeleh-git-stage-${Date.now()}`);
       const extractDir = path.join(stagingDir, "extracted");
       const archiveFile = path.join(stagingDir, "head.tar");
-      await fs.promises.mkdir(extractDir, { recursive: true });
       try {
         await execCmd(
           "git",
-          ["archive", "--format=tar", `--output=${archiveFile}`, "FETCH_HEAD"],
+          buildGitArgs(root, ["fetch", repoCheck.normalized, freshCfg.branch]),
+          { cwd: root, env, timeout: 60_000 },
+        );
+        const { stdout: statusOut } = await execCmd(
+          "git",
+          buildGitArgs(root, ["diff", "--name-status", "HEAD", "FETCH_HEAD"]),
+          { cwd: root, env, timeout: 15_000 },
+        ).catch(() => ({ stdout: "" }));
+
+        const deletedRelPaths: string[] = [];
+        for (const rawLine of statusOut.split("\n")) {
+          const line = rawLine.trim();
+          if (!line) continue;
+          const parts = line.split(/\t+/);
+          if (parts[0]?.startsWith("D") && parts[1]) {
+            deletedRelPaths.push(parts[1].trim());
+          }
+        }
+
+        await fs.promises.mkdir(extractDir, { recursive: true });
+        await execCmd(
+          "git",
+          buildGitArgs(root, ["archive", "--format=tar", `--output=${archiveFile}`, "FETCH_HEAD"]),
           { cwd: root, env, timeout: 45_000 },
         );
         await execCmd(
@@ -725,24 +731,34 @@ export async function applyZeroDowntimeUpdate(params: {
         }
         await execCmd(
           "git",
-          ["update-ref", `refs/heads/${freshCfg.branch}`, "FETCH_HEAD"],
+          buildGitArgs(root, ["update-ref", `refs/heads/${freshCfg.branch}`, "FETCH_HEAD"]),
           { cwd: root, env, timeout: 15_000 },
         ).catch(() => {});
         await execCmd(
           "git",
-          ["symbolic-ref", "HEAD", `refs/heads/${freshCfg.branch}`],
+          buildGitArgs(root, ["symbolic-ref", "HEAD", `refs/heads/${freshCfg.branch}`]),
           { cwd: root, env, timeout: 15_000 },
         ).catch(() => {});
         await execCmd(
           "git",
-          ["reset", "--mixed", "HEAD"],
+          buildGitArgs(root, ["reset", "--mixed", "HEAD"]),
           { cwd: root, env, timeout: 15_000 },
         ).catch(() => {});
+        syncedViaNativeGit = true;
+      } catch (gitErr) {
+        const msg = gitErr instanceof Error ? gitErr.message : String(gitErr);
+        console.warn(
+          "[system-updater] Native git fetch skipped; falling back to clean staging sync:",
+          msg,
+        );
+        changedFiles.length = 0;
       } finally {
         await fs.promises.rm(stagingDir, { recursive: true, force: true }).catch(() => {});
       }
-    } else {
-      // Step 2B: Staging sync (container-friendly, zero DB/uploads loss)
+    }
+
+    if (!syncedViaNativeGit) {
+      // Step 2B: Clean staging sync in OS temp (immune to .git ownership/permission issues)
       const stagingDir = path.join(os.tmpdir(), `neeleh-stage-${Date.now()}`);
       const extractDir = path.join(stagingDir, "extracted");
       await fs.promises.mkdir(extractDir, { recursive: true });
@@ -798,7 +814,15 @@ export async function applyZeroDowntimeUpdate(params: {
           }
           await execCmd(
             "git",
-            ["clone", "--depth", "1", "--branch", freshCfg.branch, repoCheck.normalized, extractDir],
+            buildGitArgs(root, [
+              "clone",
+              "--depth",
+              "1",
+              "--branch",
+              freshCfg.branch,
+              repoCheck.normalized,
+              extractDir,
+            ]),
             { env, timeout: 60_000 },
           );
         }
