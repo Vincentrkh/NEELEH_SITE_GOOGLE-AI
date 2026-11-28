@@ -19,8 +19,11 @@ import { useLang } from "@/components/language-provider";
 import { localeCurrentYear } from "@/lib/format";
 import { TmWordFill } from "@/components/tm/tm-effects";
 import { SmartSearchTrigger } from "@/components/smart-search";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { BlockReveal } from "@/components/block-reveal";
 import { BrandLogoGraphic, hasCustomBrandLogo, useBrandLogo } from "@/components/brand-logo";
+import type { PublicMenuItem } from "@/lib/menu-defaults";
+import type { PortalRole } from "@/lib/auth";
 import {
   TmArchitecturalPlate,
   TmSubmenuSvg,
@@ -29,17 +32,27 @@ import {
 } from "@/components/tm/tm-svg-art";
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   TM Chrome — 1:1 Tres Mares Header & Light #F2F2F2 Editorial Footer
+   TM Chrome — Neeleh Office Header & Editorial Footer
    ═══════════════════════════════════════════════════════════════════════════ */
 
-const LINKS = [
-  { href: "/why-neeleh", en: "About", fa: "درباره ما" },
-  { href: "/courses", en: "Courses", fa: "دوره‌ها", submenu: true },
-  { href: "/paths", en: "Paths", fa: "مسیرها" },
-  { href: "/instructors", en: "Instructors", fa: "مدرسین" },
-  { href: "/blog", en: "Journal", fa: "مجله" },
-  { href: "/contact", en: "Contact", fa: "تماس" },
-] as const;
+const OFFICE_HEADER_FALLBACK: PublicMenuItem[] = [
+  { labelFa: "دفتر نیله", labelEn: "Studio", href: "/why-neeleh", kind: "block", bgColor: "#cbcccd", fillIndicator: true },
+  { labelFa: "پروژه‌ها و دوره‌ها", labelEn: "Courses", href: "/courses", kind: "block", bgColor: "#d8d9da", fillIndicator: false },
+  { labelFa: "مسیرهای BIM", labelEn: "BIM Paths", href: "/paths", kind: "block", bgColor: "#e2e2e2", fillIndicator: false },
+  { labelFa: "تیم معماری", labelEn: "Architects", href: "/instructors", kind: "block", bgColor: "#ebebea", fillIndicator: false },
+  { labelFa: "آزمایشگاه AI", labelEn: "AI Lab", href: "/ai-lab", kind: "archive", bgColor: "#d8d9da", fillIndicator: false },
+  { labelFa: "تماس با دفتر", labelEn: "Contact", href: "/contact", kind: "block", bgColor: "#e6e6e6", fillIndicator: false },
+];
+
+const OFFICE_FOOTER_FALLBACK: PublicMenuItem[] = [
+  { labelFa: "درباره دفتر", labelEn: "Studio", href: "/why-neeleh", kind: "block", bgColor: "#cbcccd", fillIndicator: false },
+  { labelFa: "دوره‌ها و کارگاه‌ها", labelEn: "Courses", href: "/courses", kind: "block", bgColor: "#d8d9da", fillIndicator: false },
+  { labelFa: "مسیرهای تخصصی", labelEn: "Paths", href: "/paths", kind: "block", bgColor: "#e2e2e2", fillIndicator: false },
+  { labelFa: "تیم و مدرسان", labelEn: "Team", href: "/instructors", kind: "block", bgColor: "#ebebea", fillIndicator: false },
+  { labelFa: "منابع", labelEn: "Resources", href: "/resources", kind: "block", bgColor: "#ededec", fillIndicator: false },
+  { labelFa: "حریم خصوصی", labelEn: "Privacy", href: "/privacy", kind: "block", bgColor: "#f0f0ef", fillIndicator: false },
+  { labelFa: "قوانین", labelEn: "Terms", href: "/terms", kind: "block", bgColor: "#f0f0ef", fillIndicator: false },
+];
 
 const COURSE_SUBMENU: readonly {
   href: string;
@@ -79,7 +92,7 @@ export function TmLogo({ sub = true }: { sub?: boolean }) {
   const hasCustom = hasCustomBrandLogo(brandLogo);
 
   return (
-    <Link href="/" className="tm-logo" aria-label="Neeleh Academy — Home">
+    <Link href="/" className="tm-logo" aria-label="Neeleh Office — Home">
       <BrandLogoGraphic
         config={brandLogo}
         maxHeight={40}
@@ -87,10 +100,10 @@ export function TmLogo({ sub = true }: { sub?: boolean }) {
       />
       {(!hasCustom || brandLogo.showText) && (
         <span>
-          <span className="tm-logo__text">NEELEH</span>
+          <span className="tm-logo__text">{lang === "fa" ? "دفتر نیله" : "NEELEH OFFICE"}</span>
           {sub && (
             <span className="tm-logo__sub">
-              {lang === "fa" ? "آکادمی معماری" : "ARCHITECTURE ACADEMY"}
+              {lang === "fa" ? "دفتر معماری و سیستم‌های BIM" : "ARCHITECTURE OFFICE"}
             </span>
           )}
         </span>
@@ -99,17 +112,34 @@ export function TmLogo({ sub = true }: { sub?: boolean }) {
   );
 }
 
-export function TmHeader() {
+export function TmHeader({
+  menu,
+  initialPortalRole,
+}: {
+  menu?: PublicMenuItem[];
+  initialPortalRole?: PortalRole;
+}) {
   const { lang, setLang } = useLang();
-  const pathname = usePathname();
+  const pathname = usePathname() || "/";
   const [open, setOpen] = React.useState(false);
   const [scrolled, setScrolled] = React.useState(false);
   const [megaOpen, setMegaOpen] = React.useState(false);
-  const [portalRole, setPortalRole] = React.useState<"anon" | "student" | "staff">("anon");
+  const [portalRole, setPortalRole] = React.useState<PortalRole>(initialPortalRole ?? "anon");
   const megaRef = React.useRef<HTMLDivElement>(null);
   const hoverTimer = React.useRef<number | null>(null);
 
   const fa = lang === "fa";
+
+  const navItems = React.useMemo(
+    () => (menu && menu.length > 0 ? menu : OFFICE_HEADER_FALLBACK),
+    [menu],
+  );
+
+  React.useEffect(() => {
+    if (initialPortalRole !== undefined) {
+      setPortalRole(initialPortalRole);
+    }
+  }, [initialPortalRole]);
 
   React.useEffect(() => {
     let dead = false;
@@ -125,13 +155,15 @@ export function TmHeader() {
         })
         .catch(() => {});
     };
-    syncAuth();
+    if (initialPortalRole === undefined) {
+      syncAuth();
+    }
     window.addEventListener("neeleh-auth-changed", syncAuth);
     return () => {
       dead = true;
       window.removeEventListener("neeleh-auth-changed", syncAuth);
     };
-  }, [pathname]);
+  }, [initialPortalRole]);
 
   React.useEffect(() => {
     const onScroll = () => {
@@ -189,78 +221,89 @@ export function TmHeader() {
     };
   }, [megaOpen]);
 
+  const formatHref = (href: string) =>
+    href.startsWith("#") && pathname !== "/" ? `/${href}` : href;
+
   return (
     <>
       <header className="tm-header" data-scrolled={scrolled}>
         <div className="tm-header__inner">
           <TmLogo sub={false} />
 
-          <nav className="tm-nav" aria-label={fa ? "منوی اصلی" : "Main"}>
-            {LINKS.map((l) =>
-              "submenu" in l && l.submenu ? (
-                <div
-                  key={l.href}
-                  className="tm-nav__item"
-                  ref={megaRef}
-                  onMouseEnter={openMega}
-                  onMouseLeave={closeMegaSoon}
-                >
-                  <button
-                    type="button"
-                    className="tm-nav__trigger"
-                    aria-expanded={megaOpen}
-                    aria-controls="tm-mega-courses"
-                    aria-current={pathname.startsWith(l.href) ? "page" : undefined}
-                    onClick={() => setMegaOpen((v) => !v)}
-                    onFocus={openMega}
-                  >
-                    {fa ? l.fa : l.en}
-                    <ChevronDown
-                      className="tm-nav__caret"
-                      data-open={megaOpen}
-                      strokeWidth={1.6}
-                      aria-hidden="true"
-                    />
-                  </button>
+          <nav className="tm-nav" aria-label={fa ? "منوی دفتر نیله" : "Office navigation"}>
+            {navItems.map((l, idx) => {
+              const label = fa ? l.labelFa : l.labelEn;
+              const href = formatHref(l.href);
+              const hasSubmenu = l.href === "/courses" || l.href.startsWith("/courses?");
+
+              if (hasSubmenu) {
+                return (
                   <div
-                    id="tm-mega-courses"
-                    className="tm-mega"
-                    data-open={megaOpen}
+                    key={`${l.href}-${idx}`}
+                    className="tm-nav__item"
+                    ref={megaRef}
                     onMouseEnter={openMega}
                     onMouseLeave={closeMegaSoon}
                   >
-                    {COURSE_SUBMENU.map((c, i) => (
-                      <Link
-                        key={c.href}
-                        href={c.href}
-                        className="tm-mega__item"
-                        style={{ "--i": i } as React.CSSProperties}
-                        tabIndex={megaOpen ? 0 : -1}
-                        onClick={() => setMegaOpen(false)}
-                      >
-                        <span className="tm-mega__img" aria-hidden="true">
-                          <TmSubmenuSvg kind={c.svgKind} />
-                        </span>
-                        <span className="tm-mega__flex">
-                          <span className="tm-mega__icon">
-                            <c.Icon className="h-full w-full" strokeWidth={1.35} />
+                    <button
+                      type="button"
+                      className="tm-nav__trigger"
+                      aria-expanded={megaOpen}
+                      aria-controls="tm-mega-courses"
+                      aria-current={pathname.startsWith("/courses") ? "page" : undefined}
+                      onClick={() => setMegaOpen((v) => !v)}
+                      onFocus={openMega}
+                    >
+                      {label}
+                      <ChevronDown
+                        className="tm-nav__caret"
+                        data-open={megaOpen}
+                        strokeWidth={1.6}
+                        aria-hidden="true"
+                      />
+                    </button>
+                    <div
+                      id="tm-mega-courses"
+                      className="tm-mega"
+                      data-open={megaOpen}
+                      onMouseEnter={openMega}
+                      onMouseLeave={closeMegaSoon}
+                    >
+                      {COURSE_SUBMENU.map((c, i) => (
+                        <Link
+                          key={c.href}
+                          href={c.href}
+                          className="tm-mega__item"
+                          style={{ "--i": i } as React.CSSProperties}
+                          tabIndex={megaOpen ? 0 : -1}
+                          onClick={() => setMegaOpen(false)}
+                        >
+                          <span className="tm-mega__img" aria-hidden="true">
+                            <TmSubmenuSvg kind={c.svgKind} />
                           </span>
-                          <span className="tm-mega__title">{fa ? c.fa : c.en}</span>
-                        </span>
-                      </Link>
-                    ))}
+                          <span className="tm-mega__flex">
+                            <span className="tm-mega__icon">
+                              <c.Icon className="h-full w-full" strokeWidth={1.35} />
+                            </span>
+                            <span className="tm-mega__title">{fa ? c.fa : c.en}</span>
+                          </span>
+                        </Link>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ) : (
+                );
+              }
+
+              return (
                 <Link
-                  key={l.href}
-                  href={l.href}
-                  aria-current={pathname.startsWith(l.href) ? "page" : undefined}
+                  key={`${l.href}-${idx}`}
+                  href={href}
+                  aria-current={pathname === l.href || (l.href !== "/" && pathname.startsWith(l.href)) ? "page" : undefined}
                 >
-                  {fa ? l.fa : l.en}
+                  {label}
                 </Link>
-              ),
-            )}
+              );
+            })}
           </nav>
 
           <div
@@ -272,6 +315,7 @@ export function TmHeader() {
 
           <div className="tm-header__right">
             <SmartSearchTrigger variant="tm" />
+            <ThemeToggle variant="tm" />
             <div className="tm-lang-inline" role="group" aria-label={fa ? "تغییر زبان" : "Language switcher"}>
               <button
                 type="button"
@@ -306,8 +350,8 @@ export function TmHeader() {
                   ? "پنل مدیریت"
                   : "Admin Panel"
                 : fa
-                  ? "پنل هنرجو"
-                  : "Student Portal"}
+                  ? "پنل کاربران"
+                  : "Portal"}
             </Link>
 
             <button
@@ -335,7 +379,7 @@ export function TmHeader() {
           className="tm-offcanvas__panel"
           role="dialog"
           aria-modal="true"
-          aria-label={fa ? "منو" : "Menu"}
+          aria-label={fa ? "منوی دفتر نیله" : "Office Menu"}
         >
           <button
             type="button"
@@ -346,43 +390,32 @@ export function TmHeader() {
             <X className="size-6" strokeWidth={1.25} />
           </button>
 
-          <nav className="tm-offcanvas__links" aria-label={fa ? "منوی کامل" : "Full menu"}>
-            {LINKS.map((l, i) => (
-              <Link key={l.href} href={l.href}>
-                <span>0{i + 1}</span>
-                <span>{fa ? l.fa : l.en}</span>
+          <nav className="tm-offcanvas__links" aria-label={fa ? "منوی کامل دفتر" : "Full office menu"}>
+            {navItems.map((l, i) => (
+              <Link key={`${l.href}-${i}`} href={formatHref(l.href)} onClick={() => setOpen(false)}>
+                <span>{String(i + 1).padStart(2, "0")}</span>
+                <span>{fa ? l.labelFa : l.labelEn}</span>
               </Link>
             ))}
-            <Link href="/calendar">
-              <span>07</span>
-              <span>{fa ? "تقویم دوره‌ها" : "Calendar"}</span>
-            </Link>
-            <Link href="/ai-lab">
-              <span>08</span>
-              <span>{fa ? "آزمایشگاه هوش مصنوعی" : "AI Lab"}</span>
-            </Link>
-            <Link href="/resources">
-              <span>09</span>
-              <span>{fa ? "منابع آموزشی" : "Resources"}</span>
-            </Link>
           </nav>
 
           <div className="tm-offcanvas__meta" dir={fa ? "rtl" : "ltr"}>
             <p>hello@neeleh.academy</p>
-            <p>{fa ? "محل برگزاری حضوری: دامغان · آنلاین سراسری" : "Venue: Damghan · Online Nationwide"}</p>
-            <div className="mt-5 flex flex-wrap gap-3">
+            <p>{fa ? "دفتر معماری نیله — دامغان · همکاری سراسری" : "Neeleh Office — Damghan · Nationwide Practice"}</p>
+            <div className="mt-5 flex flex-wrap items-center gap-3">
               {portalRole === "staff" ? (
                 <a href="/dashboard/" className="tm-btn-dark">
                   {fa ? "پنل مدیریت" : "Admin Panel"}
                 </a>
               ) : (
                 <Link href={portalRole === "student" ? "/panel/" : "/login/"} prefetch={false} className="tm-btn-dark">
-                  {fa ? "پنل هنرجو" : "Student Portal"}
+                  {fa ? "پنل کاربران" : "Portal"}
                 </Link>
               )}
               <Link href="/search/" className="tm-btn-dark">
                 {fa ? "جستجو" : "Search"}
               </Link>
+              <ThemeToggle variant="tm" className="border border-[var(--tm-hairline)] min-w-[44px]" />
             </div>
           </div>
         </aside>
@@ -391,9 +424,9 @@ export function TmHeader() {
   );
 }
 
-/* ── Light #F2F2F2 Tres Mares Footer with CTA + Horizontal SVG Strip ───── */
+/* ── Editorial Neeleh Office Footer with CTA + Horizontal SVG Strip ───── */
 
-export function TmFooter() {
+export function TmFooter({ menu }: { menu?: PublicMenuItem[] }) {
   const { lang, setLang } = useLang();
   const fa = lang === "fa";
   const stripRef = React.useRef<HTMLDivElement>(null);
@@ -403,26 +436,28 @@ export function TmFooter() {
   });
   const driftX = useTransform(scrollYProgress, [0, 1], [-24, 24]);
 
+  const footerItems = menu && menu.length > 0 ? menu : OFFICE_FOOTER_FALLBACK;
+
   return (
     <footer className="tm-footer" dir={fa ? "rtl" : "ltr"}>
-      {/* Top CTA block matching Tres Mares 12-y9750.png */}
+      {/* Top CTA block */}
       <BlockReveal className="tm-footer__cta">
         <TmWordFill
           className="tm-footer__headline"
           text={
             fa
-              ? "فرصت طراحی دقیق، ساخت و نگاه به آینده"
-              : "The opportunity to design, build, and look ahead"
+              ? "طراحی دقیق، مهندسی BIM و نگاه به آینده معماری"
+              : "Precision design, BIM engineering, and architecture ahead"
           }
         />
         <div className="tm-footer__cta-link">
           <Link href="/contact" className="tm-link">
-            {fa ? "تماس با ما" : "Contact us"}
+            {fa ? "گفتگو با دفتر نیله" : "Contact Neeleh Office"}
           </Link>
         </div>
       </BlockReveal>
 
-      {/* Horizontal Square Monochrome Architectural Strip matching 13-y10650.png */}
+      {/* Horizontal Square Monochrome Architectural Strip */}
       <div ref={stripRef} className="tm-footer__vignettes-wrap" aria-hidden="true">
         <motion.div className="tm-footer__vignettes" style={{ x: driftX }} dir="ltr">
           {FOOTER_PLATES.map((variant, i) => (
@@ -448,16 +483,14 @@ export function TmFooter() {
 
       <hr className="tm-footer__rule" />
 
-      {/* Unified Bottom Legal & Navigation Strip on #F2F2F2 */}
+      {/* Unified Bottom Legal & Navigation Strip */}
       <div className="tm-footer__bottom">
-        <nav className="tm-footer__legal" aria-label={fa ? "لینک‌های پایین صفحه" : "Footer links"}>
-          <Link href="/courses">{fa ? "دوره‌ها" : "Courses"}</Link>
-          <Link href="/paths">{fa ? "مسیرها" : "Paths"}</Link>
-          <Link href="/why-neeleh">{fa ? "درباره ما" : "About"}</Link>
-          <Link href="/instructors">{fa ? "مدرسین" : "Instructors"}</Link>
-          <Link href="/resources">{fa ? "منابع" : "Resources"}</Link>
-          <Link href="/privacy">{fa ? "حریم خصوصی" : "Privacy"}</Link>
-          <Link href="/terms">{fa ? "قوانین" : "Terms"}</Link>
+        <nav className="tm-footer__legal" aria-label={fa ? "منوی فوتر دفتر نیله" : "Office footer links"}>
+          {footerItems.map((item, idx) => (
+            <Link key={`${item.href}-${idx}`} href={item.href}>
+              {fa ? item.labelFa : item.labelEn}
+            </Link>
+          ))}
           <button
             type="button"
             onClick={() => setLang(fa ? "en" : "fa")}
@@ -469,7 +502,7 @@ export function TmFooter() {
         </nav>
 
         <p className="tm-footer__copy">
-          © {localeCurrentYear(lang)} {fa ? "آکادمی معماری نیله" : "Neeleh Architecture Academy"}
+          © {localeCurrentYear(lang)} {fa ? "دفتر معماری نیله" : "Neeleh Architecture Office"}
         </p>
       </div>
     </footer>

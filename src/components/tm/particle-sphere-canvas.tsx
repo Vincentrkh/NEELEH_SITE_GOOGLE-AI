@@ -351,26 +351,38 @@ export const ParticleSphereCanvas = React.forwardRef<ParticleSphereHandle, Props
         if (vigRef.current) vigRef.current.style.opacity = String(toNum(o.vg, 0.73));
         if (grainRef.current) grainRef.current.style.opacity = String(toNum(o.gr, 0.41));
 
+        const isDark =
+          typeof document !== "undefined" &&
+          document.documentElement.classList.contains("dark");
         const m = toNum(o.bm, 0);
         const b1 = String(o.b1 || "#c6c6c6");
         const b2 = String(o.b2 || "#7a7a7a");
         const ba = toNum(o.ba, 165);
         const bot = m === 1 ? b1 : m === 2 ? b2 : "#7a7a7a";
 
-        container.style.backgroundImage =
-          m === 1
-            ? "none"
-            : m === 2
-              ? `linear-gradient(${ba}deg, ${b1}, ${b2})`
-              : "linear-gradient(165deg, #c6c6c6, #7a7a7a)";
-        container.style.backgroundColor = m === 1 ? b1 : "";
+        if (isDark) {
+          container.style.backgroundImage = `linear-gradient(${ba}deg, #1a1514, #0c0d10)`;
+          container.style.backgroundColor = "#0c0d10";
+        } else {
+          container.style.backgroundImage =
+            m === 1
+              ? "none"
+              : m === 2
+                ? `linear-gradient(${ba}deg, ${b1}, ${b2})`
+                : "linear-gradient(165deg, #c6c6c6, #7a7a7a)";
+          container.style.backgroundColor = m === 1 ? b1 : "";
+        }
         container.style.backgroundSize = "130% 130%";
         container.style.backgroundRepeat = "no-repeat";
 
         if (fadeRef.current) {
           fadeRef.current.style.height = `${toNum(o.fh, 28)}%`;
           fadeRef.current.style.opacity = String(toNum(o.fd, 0.45));
-          const fc = toBoolNum(o.fm) ? bot : String(o.fc || "#ffffff");
+          const fc = isDark
+            ? "#0c0d10"
+            : toBoolNum(o.fm)
+              ? bot
+              : String(o.fc || "#ffffff");
           fadeRef.current.style.background = `linear-gradient(to top, ${fc}, transparent)`;
         }
 
@@ -1622,9 +1634,15 @@ export const ParticleSphereCanvas = React.forwardRef<ParticleSphereHandle, Props
         }
       };
       window.addEventListener("neeleh-globe-updated", onGlobeUpdated);
+      const darkObserver = new MutationObserver(() => applyVisualLayers());
+      darkObserver.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ["class"],
+      });
 
       return () => {
         disposed = true;
+        darkObserver.disconnect();
         window.removeEventListener("neeleh-globe-updated", onGlobeUpdated);
         cancelAnimationFrame(rafId);
         if (timerId) clearTimeout(timerId);

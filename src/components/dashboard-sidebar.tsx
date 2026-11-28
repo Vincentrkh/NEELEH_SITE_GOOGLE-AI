@@ -20,16 +20,15 @@ import {
   X,
   ExternalLink,
   ListOrdered,
-  Globe,
   Crosshair,
   Languages,
   Award,
-  Bot,
   Cpu,
   RefreshCw,
 } from "lucide-react";
 import { useLang } from "@/components/language-provider";
 import { BrandLogoGraphic } from "@/components/brand-logo";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 type NavItem = {
   href: string;
@@ -131,26 +130,10 @@ const NAV: NavItem[] = [
   },
   {
     href: "/dashboard/theme",
-    label: "تم",
-    labelEn: "Theme",
+    label: "تم و ظاهر",
+    labelEn: "Theme & Appearance",
     icon: Palette,
     roles: ["ADMIN"],
-    group: "system",
-  },
-  {
-    href: "/dashboard/globe",
-    label: "کره ذرات هرو",
-    labelEn: "Hero Sphere",
-    icon: Globe,
-    roles: ["ADMIN"],
-    group: "system",
-  },
-  {
-    href: "/dashboard/assistant",
-    label: "دستیار هوشمند",
-    labelEn: "Smart Assistant",
-    icon: Bot,
-    roles: ["ADMIN", "EDITOR"],
     group: "system",
   },
   {
@@ -163,8 +146,8 @@ const NAV: NavItem[] = [
   },
   {
     href: "/dashboard/updates",
-    label: "بروزرسانی و گیت",
-    labelEn: "Git Updates",
+    label: "بکاپ و بروزرسانی",
+    labelEn: "Backups & Updates",
     icon: RefreshCw,
     roles: ["ADMIN"],
     group: "system",
@@ -236,6 +219,7 @@ export function DashboardSidebar({ user }: { user: DashboardUser }) {
           <span className="text-sm font-medium">{fa ? "پنل نیله" : "Neeleh Admin"}</span>
         </div>
         <div className="flex items-center gap-1">
+          <ThemeToggle variant="academy" className="min-h-[44px] min-w-[44px]" />
           <button
             type="button"
             onClick={() => setLang(fa ? "en" : "fa")}
@@ -289,10 +273,10 @@ export function DashboardSidebar({ user }: { user: DashboardUser }) {
             />
             <div>
               <div className="text-sm font-medium leading-tight">
-                {fa ? "آکادمی نیله" : "Neeleh Academy"}
+                {fa ? "نیله" : "Neeleh"}
               </div>
-              <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-                {fa ? "پنل مدیریت" : "Admin Panel"}
+              <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+                {fa ? "مدیریت یکپارچه آکادمی و دفتر" : "Unified Academy & Office"}
               </div>
             </div>
           </Link>
@@ -397,6 +381,7 @@ export function DashboardSidebar({ user }: { user: DashboardUser }) {
             <ExternalLink className="size-4" aria-hidden />
             <span className="flex-1">{fa ? "مشاهده سایت" : "View site"}</span>
           </Link>
+          <ThemeToggle variant="sidebar" className="w-full" />
           <button
             type="button"
             onClick={() => setLang(fa ? "en" : "fa")}

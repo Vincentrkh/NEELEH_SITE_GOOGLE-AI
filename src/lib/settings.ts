@@ -1,8 +1,10 @@
+import { cache } from "react";
+import { unstable_cache } from "next/cache";
 import { db } from "@/lib/db";
 
 /**
- * تنظیمات سایت — key-value از دیتابیس.
- * در صورتی که دیتابیس در دسترس نباشد، fallback خالی برمی‌گردد.
+ * تنظیمات سایت — key-value از دیتابیس با کش React + Next.js (site-settings).
+ * در صورتی که دیتابیس در دسترس نباشد، fallback امن برمی‌گردد و تنظیمات موجود سایت اصلی حفظ می‌شوند.
  */
 
 export type SiteSettings = Record<string, string>;
@@ -40,20 +42,27 @@ const FALLBACK_SETTINGS: SiteSettings = {
   "brand.logoAlt": "",
 };
 
-/** همه تنظیمات را به‌صورت یک map برمی‌گرداند. */
-export async function getSiteSettings(): Promise<SiteSettings> {
-  try {
-    const rows = await db.setting.findMany();
-    const map: SiteSettings = {};
-    for (const r of rows) {
-      map[r.key] = r.value;
+const fetchCachedSettings = unstable_cache(
+  async (): Promise<SiteSettings> => {
+    try {
+      const rows = await db.setting.findMany();
+      const map: SiteSettings = {};
+      for (const r of rows) {
+        map[r.key] = r.value;
+      }
+      return { ...FALLBACK_SETTINGS, ...map };
+    } catch {
+      return { ...FALLBACK_SETTINGS };
     }
-    // merge با fallback — اگر کلیدی در دیتابیس نبود، از fallback استفاده کن
-    return { ...FALLBACK_SETTINGS, ...map };
-  } catch {
-    return { ...FALLBACK_SETTINGS };
-  }
-}
+  },
+  ["site-settings-map"],
+  { revalidate: 300, tags: ["site-settings"] },
+);
+
+/** همه تنظیمات را به‌صورت یک map کش‌شده برمی‌گرداند. */
+export const getSiteSettings = cache(async (): Promise<SiteSettings> => {
+  return fetchCachedSettings();
+});
 
 /** یک تنظیم خاص را برمی‌گرداند. */
 export async function getSetting(key: string): Promise<string> {
@@ -63,7 +72,6 @@ export async function getSetting(key: string): Promise<string> {
 
 /**
  * لیست کلیدهای تنظیمات برای نمایش در پنل ادمین.
- * به‌صورت گروه‌بندی‌شده برای UX بهتر.
  */
 export const SETTINGS_GROUPS: {
   label: string;
@@ -134,7 +142,7 @@ export const SETTINGS_GROUPS: {
 export function localizedSetting(
   lang: "en" | "fa",
   settings: SiteSettings,
-  key: string
+  key: string,
 ): string {
   const faVal = settings[key] ?? "";
   if (lang !== "en") return faVal;

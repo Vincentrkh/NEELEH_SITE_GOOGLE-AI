@@ -67,7 +67,7 @@ export function SmartSearchTrigger({
       title={fa ? "جستجو (Ctrl+K)" : "Search (Ctrl+K)"}
       className={
         variant === "tm"
-          ? `inline-flex min-h-[44px] items-center justify-center gap-1.5 px-3 text-xs font-medium text-[#2b2b2b] hover:text-[#e41613] transition-colors shrink-0 ${className}`
+          ? `inline-flex min-h-[44px] items-center justify-center gap-1.5 px-3 text-xs font-medium text-[var(--tm-darkest)] hover:text-[#e41613] transition-colors shrink-0 ${className}`
           : `flex min-h-[40px] min-w-[40px] items-center justify-center text-muted-foreground hover:text-foreground transition-colors shrink-0 ${className}`
       }
     >

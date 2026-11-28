@@ -1,3 +1,4 @@
+import { revalidatePath, revalidateTag } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requirePermission } from "@/lib/auth";
@@ -58,6 +59,8 @@ export async function PUT(req: NextRequest) {
       });
     }
 
+    revalidateTag("site-settings", { expire: 0 });
+    revalidatePath("/", "layout");
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("settings update error", e);

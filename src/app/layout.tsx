@@ -5,30 +5,31 @@ import "./tresmares.css";
 import { Toaster } from "@/components/ui/toaster";
 import { ThemeProvider } from "@/components/theme-provider";
 import { LanguageProvider } from "@/components/language-provider";
-import { ThemeStyleInjector } from "@/components/theme-style-injector";
+import { ThemeStyleInjector, getCachedThemePayload } from "@/components/theme-style-injector";
 import { PageTransition } from "@/components/page-transition";
 import { SkinProvider } from "@/components/skin-provider";
 import { SkinSwitcher } from "@/components/skin-switcher";
-import { AdminLiveInspector } from "@/components/admin-live-inspector";
-import { SmartSearchDialog } from "@/components/smart-search";
+import { LazyGlobalWidgets } from "@/components/lazy-global-widgets";
 import { BrandLogoProvider } from "@/components/brand-logo";
-import { BRAND_LOGO_KEYS, extractBrandLogoConfig } from "@/lib/brand-logo";
+import { extractBrandLogoConfig } from "@/lib/brand-logo";
 import { getSkin } from "@/lib/skin";
 import { getServerLang } from "@/lib/i18n";
 import { getCurrentUser } from "@/lib/auth";
-import { db } from "@/lib/db";
-import { LIVE_OVERRIDES_SETTING_KEY, parseLiveOverrides } from "@/lib/live-overrides";
+import { getSiteSettings } from "@/lib/settings";
 
 const jakartaSans = Plus_Jakarta_Sans({
   variable: "--font-sans-display",
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
+  display: "swap",
 });
 
 const jetbrainsMono = JetBrains_Mono({
   variable: "--font-mono-tech",
   subsets: ["latin"],
   weight: ["400", "500"],
+  display: "swap",
+  preload: false,
 });
 
 const frauncesSerif = Fraunces({
@@ -36,6 +37,8 @@ const frauncesSerif = Fraunces({
   subsets: ["latin"],
   weight: ["400", "500"],
   style: ["normal", "italic"],
+  display: "swap",
+  preload: false,
 });
 
 const tmSerifFont = Instrument_Serif({
@@ -43,33 +46,37 @@ const tmSerifFont = Instrument_Serif({
   subsets: ["latin"],
   weight: ["400"],
   style: ["normal", "italic"],
+  display: "swap",
+  preload: false,
 });
 
 const EN_META = {
-  title: "Neeleh Academy | Smart Architectural Systems & AI-era Education",
+  title: "Neeleh | Architecture Academy & BIM Practice",
   description:
-    "Neeleh Academy — architecture education beyond tools: from Phase-2 drafting and BIM workflows to computational design with Grasshopper and AI-augmented architecture. Built on architectural experiences unified since 2000; in-person cohorts in Damghan & live online.",
+    "Neeleh Academy & Office — architecture education and BIM systems beyond tools: from Phase-2 drafting to computational design and AI-augmented architecture.",
 };
 
 const FA_META = {
-  title: "آکادمی نیله | آموزش معماری در عصر هوش مصنوعی",
+  title: "نیله | آکادمی و دفتر تخصصی معماری",
   description:
-    "آکادمی نیله — آموزش معماری فراتر از ابزارها: از نقشه‌کشی فاز ۲ و گردش‌کار BIM تا طراحی محاسباتی با گرس‌هاپر و معماری مبتنی بر هوش مصنوعی. هم‌افزایی تجربه‌ها از سال ۱۳۷۹ تا امروز؛ برگزاری حضوری در دامغان و آنلاین.",
+    "نیله — آموزش و اجرای سیستم‌های هوشمند معماری فراتر از ابزارها: از نقشه‌کشی فاز ۲ و گردش‌کار BIM تا طراحی محاسباتی و هوش مصنوعی.",
 };
 
 export async function generateMetadata(): Promise<Metadata> {
-  const [lang, logoUrlRow] = await Promise.all([
+  const [lang, settings] = await Promise.all([
     getServerLang(),
-    db.setting.findUnique({ where: { key: "brand.logoUrl" } }).catch(() => null),
+    getSiteSettings().catch(() => ({} as Record<string, string>)),
   ]);
   const m = lang === "fa" ? FA_META : EN_META;
-  const customIcon = logoUrlRow?.value?.trim();
+  const customIcon = settings["brand.logoUrl"]?.trim();
   return {
     title: m.title,
     description: m.description,
     keywords: [
       "آکادمی نیله",
+      "دفتر معماری نیله",
       "Neeleh Academy",
+      "Neeleh Office",
       "architecture education",
       "AutoCAD Phase 2",
       "Revit BIM",
@@ -77,9 +84,8 @@ export async function generateMetadata(): Promise<Metadata> {
       "parametric design",
       "AI in architecture",
       "computational design",
-      "Damghan architecture academy",
     ],
-    authors: [{ name: "Neeleh Academy" }],
+    authors: [{ name: "Neeleh" }],
     ...(customIcon ? { icons: { icon: customIcon, shortcut: customIcon } } : {}),
     openGraph: {
       title: m.title,
@@ -94,26 +100,26 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // پوسته فعال از کوکی — تا SSR از همان ابتدا با پوسته درست رندر شود
-  const skin = await getSkin();
-  // زبان از کوکی — برای dir درست در اولین رندر سرور (بدون فلش RTL/LTR)
-  const lang = await getServerLang();
-  const [currentUser, overrideRow, brandRows] = await Promise.all([
+  const [skin, lang, currentUser, settings, themePayload] = await Promise.all([
+    getSkin(),
+    getServerLang(),
     getCurrentUser().catch(() => null),
-    db.setting.findUnique({ where: { key: LIVE_OVERRIDES_SETTING_KEY } }).catch(() => null),
-    db.setting.findMany({ where: { key: { in: [...BRAND_LOGO_KEYS] } } }).catch(() => []),
+    getSiteSettings().catch(() => ({} as Record<string, string>)),
+    getCachedThemePayload().catch(() => ({ theme: null, liveRules: [], liveOverridesCss: "" })),
   ]);
+
   const initialIsAdmin = Boolean(
     currentUser &&
       (currentUser.roles.includes("ADMIN") ||
         currentUser.permissions.includes("theme.manage")),
   );
-  const initialRules = parseLiveOverrides(overrideRow?.value);
-  const brandMap: Record<string, string> = {};
-  for (const r of brandRows) {
-    brandMap[r.key] = r.value;
-  }
-  const initialBrandLogo = extractBrandLogoConfig(brandMap);
+  const initialBrandLogo = extractBrandLogoConfig(settings);
+  const defaultTheme =
+    themePayload.theme?.mode === "DARK"
+      ? "dark"
+      : themePayload.theme?.mode === "AUTO"
+        ? "system"
+        : "light";
 
   return (
     <html lang={lang} dir={lang === "fa" ? "rtl" : "ltr"} suppressHydrationWarning data-skin={skin}>
@@ -125,8 +131,8 @@ export default async function RootLayout({
       >
         <ThemeProvider
           attribute="class"
-          defaultTheme="light"
-          enableSystem={false}
+          defaultTheme={defaultTheme}
+          enableSystem={true}
           disableTransitionOnChange
         >
           <SkinProvider skin={skin}>
@@ -135,11 +141,10 @@ export default async function RootLayout({
                 <PageTransition>
                   {children}
                 </PageTransition>
-                <SmartSearchDialog />
                 <SkinSwitcher />
-                <AdminLiveInspector
+                <LazyGlobalWidgets
                   initialIsAdmin={initialIsAdmin}
-                  initialRules={initialRules}
+                  initialRules={themePayload.liveRules}
                 />
                 <Toaster />
               </BrandLogoProvider>

@@ -139,14 +139,20 @@ function FillToken({
   range,
   children,
   accent,
+  isDark,
 }: {
   progress: MotionValue<number>;
   range: [number, number];
   children: string;
   accent?: boolean;
+  isDark: boolean;
 }) {
-  const from = accent ? "rgba(228, 22, 19, 0.14)" : "rgba(43, 43, 43, 0.12)";
-  const to = accent ? "#e41613" : "#2b2b2b";
+  const from = accent
+    ? "rgba(228, 22, 19, 0.16)"
+    : isDark
+      ? "rgba(242, 242, 238, 0.18)"
+      : "rgba(43, 43, 43, 0.12)";
+  const to = accent ? "#e41613" : isDark ? "#f2f2ee" : "#2b2b2b";
   const color = useTransform(progress, range, [from, to]);
   return (
     <motion.span className="tm-wordfill" style={{ color, display: "inline-block" }}>
@@ -156,8 +162,8 @@ function FillToken({
 }
 
 /**
- * TmWordFill — mirrors Tres Mares' large centered `--fill` text blocks:
- *   - Latin text fills character-by-character smoothly on scroll (04-y2550 & 12-y9750)
+ * TmWordFill — mirrors large centered `--fill` text blocks:
+ *   - Latin text fills character-by-character smoothly on scroll
  *   - Persian/Arabic script fills word-by-word to preserve connected ligatures!
  *   - Optional `highlight` phrase renders in crisp Brand Red (#E41613).
  */
@@ -171,6 +177,16 @@ export function TmWordFill({
   className?: string;
 }) {
   const ref = React.useRef<HTMLParagraphElement>(null);
+  const [isDark, setIsDark] = React.useState(false);
+
+  React.useEffect(() => {
+    const sync = () => setIsDark(document.documentElement.classList.contains("dark"));
+    sync();
+    const mo = new MutationObserver(sync);
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+    return () => mo.disconnect();
+  }, []);
+
   const { scrollYProgress } = useScroll({
     target: ref,
     offset: ["start 0.92", "end 0.56"],
@@ -249,6 +265,7 @@ export function TmWordFill({
                     progress={scrollYProgress}
                     range={[start, end]}
                     accent={isAccentWord}
+                    isDark={isDark}
                   >
                     {ch}
                   </FillToken>
@@ -275,6 +292,7 @@ export function TmWordFill({
             progress={scrollYProgress}
             range={[start, end]}
             accent={tok.accent}
+            isDark={isDark}
           >
             {tok.val}
           </FillToken>

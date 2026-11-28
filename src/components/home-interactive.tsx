@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
+import { useState } from "react";
 import { GooDefs } from "@/components/goo-defs";
 import { Preloader } from "@/components/preloader";
 import { CustomCursor } from "@/components/custom-cursor";
@@ -11,7 +12,6 @@ import {
   DEFAULT_BRUSH_RADIUS,
 } from "@/components/fluid-reveal";
 import {
-  BrushSettings,
   DEFAULT_REVEAL_BG,
   type RevealBg,
 } from "@/components/brush-settings";
@@ -23,6 +23,12 @@ import { PhilosophySection } from "@/components/philosophy-section";
 import { ContactSection } from "@/components/contact-section";
 import { useLenis } from "@/hooks/use-lenis";
 import type { PublicMenuItem } from "@/lib/menu-defaults";
+import type { PortalRole } from "@/lib/auth";
+
+const BrushSettings = dynamic(
+  () => import("@/components/brush-settings").then((m) => m.BrushSettings),
+  { ssr: false },
+);
 
 const PROJECT_TILES: OrbitTile[] = [
   { src: "/images/hero.png", alt: "Neeleh studio", href: "#top" },
@@ -33,9 +39,11 @@ const PROJECT_TILES: OrbitTile[] = [
 
 export function HomeInteractive({
   menu,
+  initialPortalRole,
   children,
 }: {
   menu?: PublicMenuItem[];
+  initialPortalRole?: PortalRole;
   children?: React.ReactNode;
 }) {
   useLenis();
@@ -43,20 +51,16 @@ export function HomeInteractive({
   const [brushRadius, setBrushRadius] = useState(DEFAULT_BRUSH_RADIUS);
   const [revealBg, setRevealBg] = useState<RevealBg>(DEFAULT_REVEAL_BG);
 
-  useEffect(() => {
-    document.documentElement.classList.remove("dark");
-  }, []);
-
   return (
     <div className="relative min-h-screen flex flex-col grain">
       <GooDefs />
       <Preloader />
       <CustomCursor />
-      <SiteHeader menu={menu} />
+      <SiteHeader menu={menu} initialPortalRole={initialPortalRole} />
 
       <main className="flex-1 relative">
         <FluidReveal
-          maskColor="rgb(255, 255, 255)"
+          maskColor="var(--background)"
           brushRadius={brushRadius}
           revealBackground={revealBg.value}
           revealContent={<OrbitTiles tiles={PROJECT_TILES} />}

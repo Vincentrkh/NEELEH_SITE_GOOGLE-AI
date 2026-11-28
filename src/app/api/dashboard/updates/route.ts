@@ -13,8 +13,10 @@ import {
 import {
   checkForRemoteUpdates,
   createPreUpdateSnapshot,
+  deleteBackupByFilename,
   ensureUpdateConfig,
   getSafeUpdateStatus,
+  restoreBackupByFilename,
   rollbackDatabaseFromLog,
   startBackgroundUpdate,
 } from "@/lib/system-updater";
@@ -155,8 +157,9 @@ export async function POST(req: NextRequest) {
     }
 
     const body = (await req.json().catch(() => ({}))) as {
-      action?: "check" | "apply" | "snapshot" | "rollback";
+      action?: "check" | "apply" | "snapshot" | "rollback" | "restore_file" | "delete_backup";
       logId?: string;
+      filename?: string;
     };
 
     if (body.action === "check") {
@@ -184,7 +187,7 @@ export async function POST(req: NextRequest) {
     if (body.action === "snapshot") {
       const startedAt = Date.now();
       const cfg = await ensureUpdateConfig();
-      const backupPath = await createPreUpdateSnapshot();
+      const backupPath = await createPreUpdateSnapshot("manual-snapshot");
       await db.systemUpdateLog.create({
         data: {
           trigger: "MANUAL",
@@ -203,6 +206,32 @@ export async function POST(req: NextRequest) {
 
     if (body.action === "rollback" && body.logId) {
       const res = await rollbackDatabaseFromLog(body.logId, admin.id);
+      if (res.ok) {
+        try {
+          revalidatePath("/", "layout");
+        } catch {
+          // ignore
+        }
+      }
+      const status = await getSafeUpdateStatus();
+      return NextResponse.json({ ...res, ...status }, { status: res.ok ? 200 : 400 });
+    }
+
+    if (body.action === "restore_file" && body.filename) {
+      const res = await restoreBackupByFilename(body.filename, admin.id);
+      if (res.ok) {
+        try {
+          revalidatePath("/", "layout");
+        } catch {
+          // ignore
+        }
+      }
+      const status = await getSafeUpdateStatus();
+      return NextResponse.json({ ...res, ...status }, { status: res.ok ? 200 : 400 });
+    }
+
+    if (body.action === "delete_backup" && body.filename) {
+      const res = await deleteBackupByFilename(body.filename);
       const status = await getSafeUpdateStatus();
       return NextResponse.json({ ...res, ...status }, { status: res.ok ? 200 : 400 });
     }

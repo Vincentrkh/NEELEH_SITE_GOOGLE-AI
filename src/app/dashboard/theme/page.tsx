@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 import { useLang } from "@/components/language-provider";
 import { dict } from "@/lib/i18n";
-import { Loader2, Save, RotateCcw, Palette } from "lucide-react";
+import { Loader2, Save, RotateCcw, Palette, Globe } from "lucide-react";
 
 type ThemeData = {
   id: string;
@@ -51,6 +52,7 @@ export default function ThemePage() {
   const [theme, setTheme] = useState<ThemeData | null>(null);
   const [denied, setDenied] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [confirmingReset, setConfirmingReset] = useState(false);
 
   useEffect(() => {
     fetch("/api/dashboard/theme")
@@ -111,8 +113,12 @@ export default function ThemePage() {
   }
 
   function reset() {
-    if (!confirm(confirmResetMessage)) return;
     setTheme((t) => (t ? { ...t, ...DEFAULTS } : t));
+    setConfirmingReset(false);
+    toast({
+      title: lang === "fa" ? "مقادیر پیش‌فرض اعمال شد" : "Defaults applied",
+      description: lang === "fa" ? "برای ثبت نهایی دکمه ذخیره را بزنید." : "Click Save to apply across the site.",
+    });
   }
 
   if (denied) {
@@ -151,14 +157,43 @@ export default function ThemePage() {
             {t.themeSubtitle}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={reset}
-          className="flex min-h-[44px] items-center gap-2 border border-border rounded-md px-4 text-sm text-muted-foreground hover:text-foreground hover:bg-secondary/40 transition-colors"
-        >
-          <RotateCcw className="size-3.5" />
-          {t.themeReset}
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href="/dashboard/globe"
+            className="flex min-h-[44px] items-center gap-2 border border-border rounded-md px-4 text-sm text-foreground hover:bg-secondary/40 transition-colors"
+          >
+            <Globe className="size-3.5" />
+            {lang === "fa" ? "کره ذرات ۳D هرو" : "3D Hero Sphere"}
+          </Link>
+          {confirmingReset ? (
+            <div className="flex items-center gap-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-1.5">
+              <span className="text-xs text-destructive">{confirmResetMessage}</span>
+              <button
+                type="button"
+                onClick={reset}
+                className="rounded bg-destructive px-2.5 py-1 text-xs font-medium text-white hover:opacity-90"
+              >
+                {lang === "fa" ? "تایید" : "Confirm"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmingReset(false)}
+                className="rounded border border-border px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground"
+              >
+                {lang === "fa" ? "لغو" : "Cancel"}
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setConfirmingReset(true)}
+              className="flex min-h-[44px] items-center gap-2 border border-border rounded-md px-4 text-sm text-muted-foreground hover:text-foreground hover:bg-secondary/40 transition-colors"
+            >
+              <RotateCcw className="size-3.5" />
+              {t.themeReset}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Mode selector */}

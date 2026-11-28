@@ -33,29 +33,35 @@ export function ThemeProvider({
   children,
   attribute = "class",
   defaultTheme = "light",
-  enableSystem = false,
+  enableSystem = true,
   disableTransitionOnChange = false,
   storageKey = "theme",
 }: ThemeProviderProps) {
   const [theme, setThemeState] = React.useState<string>(defaultTheme);
+  const [hydrated, setHydrated] = React.useState(false);
 
   React.useEffect(() => {
     try {
       const saved = window.localStorage.getItem(storageKey);
-      if (saved) setThemeState(saved);
+      if (saved === "light" || saved === "dark" || saved === "system") {
+        setThemeState(saved);
+      }
     } catch {
       // ignore storage access errors
     }
+    setHydrated(true);
   }, [storageKey]);
 
   const resolvedTheme = React.useMemo(() => {
     if (theme === "system" && enableSystem && typeof window !== "undefined") {
       return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
     }
-    return theme === "system" ? defaultTheme : theme;
+    if (theme === "dark" || theme === "light") return theme;
+    return defaultTheme === "dark" ? "dark" : "light";
   }, [theme, enableSystem, defaultTheme]);
 
   React.useEffect(() => {
+    if (!hydrated) return;
     const root = document.documentElement;
     let cleanupStyle: (() => void) | undefined;
 
@@ -84,7 +90,7 @@ export function ThemeProvider({
     root.style.colorScheme = resolvedTheme === "dark" ? "dark" : "light";
 
     cleanupStyle?.();
-  }, [attribute, resolvedTheme, disableTransitionOnChange]);
+  }, [hydrated, attribute, resolvedTheme, disableTransitionOnChange]);
 
   const setTheme = React.useCallback(
     (next: string) => {

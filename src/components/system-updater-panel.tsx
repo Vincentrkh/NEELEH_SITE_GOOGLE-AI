@@ -11,6 +11,7 @@ import {
   CheckCircle2,
   Copy,
   Database,
+  Download,
   GitBranch,
   History,
   Loader2,
@@ -20,6 +21,7 @@ import {
   Save,
   ShieldCheck,
   Terminal,
+  Trash2,
   XCircle,
 } from "lucide-react";
 
@@ -69,7 +71,26 @@ export type UpdateStatusPayload = {
     durationMs: number;
     createdAt: string;
   }>;
+  backups?: Array<{
+    filename: string;
+    source: "backups" | "temp";
+    sizeBytes: number;
+    createdAt: string;
+    modifiedAt: string;
+    trigger: string | null;
+    commit: string | null;
+  }>;
 };
+
+function formatArchiveBytes(bytes: number, fa: boolean): string {
+  if (!Number.isFinite(bytes) || bytes < 0) return fa ? "۰ بایت" : "0 B";
+  if (bytes < 1024) return `${localeNumber(fa ? "fa" : "en", bytes)} B`;
+  const kb = bytes / 1024;
+  if (kb < 1024) return `${kb.toFixed(1)} KB`;
+  const mb = kb / 1024;
+  if (mb < 1024) return `${mb.toFixed(2)} MB`;
+  return `${(mb / 1024).toFixed(2)} GB`;
+}
 
 export function SystemUpdaterPanel({
   initialData,
@@ -112,6 +133,8 @@ export function SystemUpdaterPanel({
     initialData.logs.find((l) => l.status === "UPDATING")?.id ?? null,
   );
   const transientErrorsRef = useRef(0);
+  const [confirmRestoreFile, setConfirmRestoreFile] = useState<string | null>(null);
+  const [confirmDeleteFile, setConfirmDeleteFile] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{
     kind: "success" | "warning" | "error";
     text: string;
@@ -154,6 +177,7 @@ export function SystemUpdaterPanel({
             config: json.config,
             environment: json.environment,
             logs: json.logs,
+            backups: json.backups ?? [],
           });
         }
 
@@ -345,10 +369,10 @@ export function SystemUpdaterPanel({
   }
 
   async function runAction(
-    action: "check" | "apply" | "snapshot" | "rollback",
-    logId?: string,
+    action: "check" | "apply" | "snapshot" | "rollback" | "restore_file" | "delete_backup",
+    logIdOrFilename?: string,
   ) {
-    const key = logId ? `${action}:${logId}` : action;
+    const key = logIdOrFilename ? `${action}:${logIdOrFilename}` : action;
     setBusyAction(key);
     setFeedback(null);
     try {
@@ -357,10 +381,15 @@ export function SystemUpdaterPanel({
         if (!savedOk) return;
       }
 
+      const payload =
+        action === "restore_file" || action === "delete_backup"
+          ? { action, filename: logIdOrFilename }
+          : { action, logId: logIdOrFilename };
+
       const res = await fetch("/api/dashboard/updates/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, logId }),
+        body: JSON.stringify(payload),
       });
 
       const rawText = await res.text();
@@ -397,16 +426,17 @@ export function SystemUpdaterPanel({
           config: json.config,
           environment: json.environment,
           logs: json.logs,
+          backups: json.backups ?? [],
         });
       }
       if (!res.ok || !json) {
         const errText =
           json?.error ||
           json?.message ||
-          (fa ? "عملیات بروزرسانی انجام نشد" : "Update action failed");
+          (fa ? "عملیات انجام نشد" : "Action failed");
         setFeedback({ kind: "error", text: errText });
         toast({
-          title: fa ? "عملیات بروزرسانی انجام نشد" : "Update action failed",
+          title: fa ? "عملیات انجام نشد" : "Action failed",
           description: errText,
           variant: "destructive",
         });
@@ -459,9 +489,13 @@ export function SystemUpdaterPanel({
               ? fa
                 ? "نسخه پشتیبان فوری ایجاد شد"
                 : "Instant snapshot created"
-              : fa
-                ? "دیتابیس با موفقیت بازگردانی شد"
-                : "Database restored from snapshot";
+              : action === "delete_backup"
+                ? fa
+                  ? "فایل بکاپ حذف شد"
+                  : "Backup archive deleted"
+                : fa
+                  ? "بکاپ با موفقیت بازگردانی شد"
+                  : "Backup restored successfully";
 
       const detailParts: string[] = [];
       if (json.message) detailParts.push(json.message);
@@ -480,7 +514,9 @@ export function SystemUpdaterPanel({
         title: successTitle,
         description: json.message,
       });
-      if (action === "rollback") {
+      setConfirmRestoreFile(null);
+      setConfirmDeleteFile(null);
+      if (action === "rollback" || action === "restore_file") {
         router.refresh();
       } else if (action === "apply" && !json.needsRestart) {
         setTimeout(() => {
@@ -995,6 +1031,176 @@ export function SystemUpdaterPanel({
           </pre>
         </div>
       </div>
+
+      {/* Backup Archives List, Download & Restore */}
+      <section className="space-y-3" id="backup-archives">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Archive className="size-4 text-muted-foreground" />
+            <h2 className="text-lg font-medium">
+              {fa ? "فهرست بکاپ‌ها، دانلود و بازگردانی (Restore)" : "Backup Archives, Download & Restore"}
+            </h2>
+          </div>
+          <div className="flex items-center gap-2">
+            <a
+              href="/api/dashboard/backup"
+              className="inline-flex min-h-[36px] items-center gap-1.5 rounded-md border border-border bg-background px-3 text-xs font-medium hover:bg-secondary transition-colors whitespace-nowrap"
+            >
+              <Download className="size-3.5" />
+              <span>{fa ? "دانلود بکاپ کامل پروژه" : "Download Full ZIP"}</span>
+            </a>
+            <button
+              type="button"
+              disabled={Boolean(busyAction) || isPolling}
+              onClick={() => void runAction("snapshot")}
+              className="inline-flex min-h-[36px] items-center gap-1.5 rounded-md bg-foreground text-background px-3.5 text-xs font-medium hover:opacity-90 disabled:opacity-50 whitespace-nowrap"
+            >
+              {busyAction === "snapshot" ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <Archive className="size-3.5" />
+              )}
+              <span>{fa ? "ایجاد بکاپ جدید در لیست" : "Create Backup"}</span>
+            </button>
+          </div>
+        </div>
+
+        <p className="text-xs text-muted-foreground leading-relaxed">
+          {fa
+            ? "پیش از هر بازگردانی (Restore)، سیستم به‌صورت خودکار یک بکاپ ایمنی از وضعیت فعلی ذخیره می‌کند و فقط دیتابیس و فایل‌های آپلودی بازگردانی می‌شوند (.env و کلیدهای امنیتی سرور دست‌نخورده می‌مانند)."
+            : "Before restoring any archive, a safety snapshot of the current state is saved automatically while .env and server secrets remain untouched."}
+        </p>
+
+        <div className="overflow-x-auto rounded-lg border border-border bg-card">
+          <table className="w-full text-xs">
+            <thead className="border-b border-border bg-secondary/30 text-muted-foreground">
+              <tr>
+                <th className="py-3 px-4 text-start font-medium">{fa ? "نام فایل بکاپ" : "Archive Filename"}</th>
+                <th className="py-3 px-4 text-start font-medium">{fa ? "منبع / محل" : "Origin / Path"}</th>
+                <th className="py-3 px-4 text-start font-medium">{fa ? "حجم" : "Size"}</th>
+                <th className="py-3 px-4 text-start font-medium">{fa ? "تاریخ ایجاد" : "Created At"}</th>
+                <th className="py-3 px-4 text-end font-medium">{fa ? "عملیات" : "Actions"}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {(data.backups ?? []).length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="py-8 text-center text-muted-foreground">
+                    {fa
+                      ? "هنوز آرشیو بکاپ ذخیره‌شده‌ای وجود ندارد. با کلیک روی «ایجاد بکاپ جدید در لیست» اولین بکاپ را بسازید."
+                      : "No backup archives stored yet. Click Create Backup to save a restorable snapshot."}
+                  </td>
+                </tr>
+              ) : (
+                (data.backups ?? []).map((b) => {
+                  const isRestoring = busyAction === `restore_file:${b.filename}`;
+                  const isDeleting = busyAction === `delete_backup:${b.filename}`;
+                  const askingRestore = confirmRestoreFile === b.filename;
+                  const askingDelete = confirmDeleteFile === b.filename;
+                  return (
+                    <tr key={b.filename}>
+                      <td className="py-3 px-4 font-mono" dir="ltr">
+                        {b.filename}
+                      </td>
+                      <td className="py-3 px-4 text-muted-foreground">
+                        {b.trigger ? `${b.trigger} · ` : ""}
+                        {b.source === "backups" ? "backups/" : "tmp/"}
+                        {b.commit ? ` · ${b.commit}` : ""}
+                      </td>
+                      <td className="py-3 px-4 tabular-nums" dir="ltr">
+                        {formatArchiveBytes(b.sizeBytes, fa)}
+                      </td>
+                      <td className="py-3 px-4 text-muted-foreground tabular-nums">
+                        {localeDateTime(lang, b.modifiedAt)}
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="flex items-center justify-end gap-2">
+                          <a
+                            href={`/api/dashboard/updates/backups/${encodeURIComponent(b.filename)}`}
+                            download={b.filename}
+                            className="inline-flex min-h-[32px] items-center gap-1 rounded border border-border px-2.5 text-[11px] font-medium hover:bg-secondary transition-colors whitespace-nowrap"
+                          >
+                            <Download className="size-3" />
+                            <span>{fa ? "دانلود" : "Download"}</span>
+                          </a>
+
+                          {askingRestore ? (
+                            <div className="inline-flex items-center gap-1">
+                              <button
+                                type="button"
+                                disabled={Boolean(busyAction) || isPolling}
+                                onClick={() => void runAction("restore_file", b.filename)}
+                                className="inline-flex min-h-[32px] items-center gap-1 rounded bg-foreground text-background px-2.5 text-[11px] font-medium hover:opacity-90 disabled:opacity-50 whitespace-nowrap"
+                              >
+                                {isRestoring && <Loader2 className="size-3 animate-spin" />}
+                                <span>{fa ? "تأیید ریستور" : "Confirm Restore"}</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setConfirmRestoreFile(null)}
+                                className="inline-flex min-h-[32px] items-center rounded border border-border px-2 text-[11px] text-muted-foreground hover:text-foreground"
+                              >
+                                {fa ? "لغو" : "Cancel"}
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={Boolean(busyAction) || isPolling}
+                              onClick={() => {
+                                setConfirmDeleteFile(null);
+                                setConfirmRestoreFile(b.filename);
+                              }}
+                              className="inline-flex min-h-[32px] items-center gap-1 rounded border border-border px-2.5 text-[11px] font-medium hover:bg-secondary disabled:opacity-50 whitespace-nowrap"
+                            >
+                              <RotateCcw className="size-3" />
+                              <span>{fa ? "ریستور" : "Restore"}</span>
+                            </button>
+                          )}
+
+                          {askingDelete ? (
+                            <div className="inline-flex items-center gap-1">
+                              <button
+                                type="button"
+                                disabled={Boolean(busyAction) || isPolling}
+                                onClick={() => void runAction("delete_backup", b.filename)}
+                                className="inline-flex min-h-[32px] items-center gap-1 rounded bg-destructive text-white px-2.5 text-[11px] font-medium hover:opacity-90 disabled:opacity-50 whitespace-nowrap"
+                              >
+                                {isDeleting && <Loader2 className="size-3 animate-spin" />}
+                                <span>{fa ? "حذف قطعی" : "Confirm"}</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setConfirmDeleteFile(null)}
+                                className="inline-flex min-h-[32px] items-center rounded border border-border px-2 text-[11px] text-muted-foreground hover:text-foreground"
+                              >
+                                {fa ? "لغو" : "Cancel"}
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={Boolean(busyAction) || isPolling}
+                              onClick={() => {
+                                setConfirmRestoreFile(null);
+                                setConfirmDeleteFile(b.filename);
+                              }}
+                              aria-label={fa ? `حذف بکاپ ${b.filename}` : `Delete ${b.filename}`}
+                              className="inline-flex min-h-[32px] items-center justify-center rounded border border-border px-2 text-muted-foreground hover:text-destructive hover:bg-secondary disabled:opacity-50"
+                            >
+                              <Trash2 className="size-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
 
       {/* Update History & Rollback Table */}
       <section className="space-y-3">

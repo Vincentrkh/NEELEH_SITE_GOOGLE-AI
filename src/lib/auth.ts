@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createHmac, randomBytes, scryptSync, timingSafeEqual } from "crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import path from "path";
@@ -196,8 +197,16 @@ export type SessionUser = {
   permissions: string[]; // لیست کلیدهای مجوز
 };
 
-/** کاربر جاری از کوکی — null اگر لاگین نیست. */
-export async function getCurrentUser(): Promise<SessionUser | null> {
+export type PortalRole = "anon" | "student" | "staff";
+
+export function getPortalRole(user: SessionUser | null | undefined): PortalRole {
+  if (!user) return "anon";
+  if (user.roles.includes("ADMIN") || user.roles.includes("EDITOR")) return "staff";
+  return "student";
+}
+
+/** کاربر جاری از کوکی — null اگر لاگین نیست (Memoized per RSC request). */
+export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
   const jar = await cookies();
   const token = jar.get(COOKIE_NAME)?.value;
   if (!token) return null;
@@ -275,7 +284,7 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
     roles,
     permissions,
   };
-}
+});
 
 /** گارد مسیرهای ادمین — کاربر یا null. */
 export async function requireUser(): Promise<SessionUser | null> {

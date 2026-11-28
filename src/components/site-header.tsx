@@ -1,13 +1,16 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { AnimatePresence, motion, useScroll, useSpring } from "framer-motion";
 import { useEffect, useState } from "react";
 import { useLang } from "@/components/language-provider";
 import { SmartSearchTrigger } from "@/components/smart-search";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { BrandLogoGraphic, hasCustomBrandLogo, useBrandLogo } from "@/components/brand-logo";
 import { hasRtlScript, toFaDigits } from "@/lib/i18n";
 import type { PublicMenuItem } from "@/lib/menu-defaults";
+import type { PortalRole } from "@/lib/auth";
 
 type MenuItem = {
   num?: string;
@@ -36,13 +39,26 @@ const CLOSE_STAGGER = 0.1;
 const CLOSE_DURATION = 0.32;
 const EASE = [0.76, 0, 0.24, 1] as const;
 
-export function SiteHeader({ menu }: { menu?: PublicMenuItem[] }) {
+export function SiteHeader({
+  menu,
+  initialPortalRole,
+}: {
+  menu?: PublicMenuItem[];
+  initialPortalRole?: PortalRole;
+}) {
+  const pathname = usePathname() || "/";
   const [open, setOpen] = useState(false);
-  const [portalRole, setPortalRole] = useState<"anon" | "student" | "staff">("anon");
+  const [portalRole, setPortalRole] = useState<PortalRole>(initialPortalRole ?? "anon");
   const { lang, t } = useLang();
   const brandLogo = useBrandLogo();
   const hasCustomLogo = hasCustomBrandLogo(brandLogo);
   const fa = lang === "fa";
+
+  useEffect(() => {
+    if (initialPortalRole !== undefined) {
+      setPortalRole(initialPortalRole);
+    }
+  }, [initialPortalRole]);
 
   useEffect(() => {
     let dead = false;
@@ -58,13 +74,18 @@ export function SiteHeader({ menu }: { menu?: PublicMenuItem[] }) {
         })
         .catch(() => {});
     };
-    syncAuth();
+    if (initialPortalRole === undefined) {
+      syncAuth();
+    }
     window.addEventListener("neeleh-auth-changed", syncAuth);
     return () => {
       dead = true;
       window.removeEventListener("neeleh-auth-changed", syncAuth);
     };
-  }, []);
+  }, [initialPortalRole]);
+
+  const resolveHref = (href: string) =>
+    href.startsWith("#") && pathname !== "/" ? `/${href}` : href;
 
   const resolvedItems: MenuItem[] =
     menu && menu.length > 0
@@ -73,7 +94,7 @@ export function SiteHeader({ menu }: { menu?: PublicMenuItem[] }) {
           return menu.map((m) => {
             const isArchive = m.kind === "archive";
             if (!isArchive) blockNum += 1;
-            const safeHref = m.href === "#experiments" ? "/ai-lab" : m.href;
+            const safeHref = resolveHref(m.href === "#experiments" ? "/ai-lab" : m.href);
             return {
               num: isArchive ? undefined : String(blockNum),
               labelFa: m.labelFa,
@@ -85,7 +106,7 @@ export function SiteHeader({ menu }: { menu?: PublicMenuItem[] }) {
             };
           });
         })()
-      : ITEMS;
+      : ITEMS.map((item) => ({ ...item, href: resolveHref(item.href) }));
 
   const { scrollYProgress } = useScroll();
   const progress = useSpring(scrollYProgress, {
@@ -128,46 +149,45 @@ export function SiteHeader({ menu }: { menu?: PublicMenuItem[] }) {
             )}
           </Link>
 
-          {/* Zone 2: Clean single-line text nav links */}
+          {/* Zone 2: Clean single-line text nav links driven by Academy header menu */}
           <nav
             aria-label={fa ? "ناوبری اصلی" : "Primary navigation"}
             className="hidden lg:flex items-center gap-6 text-xs font-medium text-muted-foreground"
           >
-            <Link
-              href="/courses"
-              className="hover:text-foreground transition-colors whitespace-nowrap shrink-0 link-underline py-1"
-            >
-              {fa ? "دوره‌ها" : "Courses"}
-            </Link>
-            <Link
-              href="/calendar"
-              className="hover:text-foreground transition-colors whitespace-nowrap shrink-0 link-underline py-1"
-            >
-              {fa ? "تقویم ترم‌ها" : "Calendar"}
-            </Link>
-            <Link
-              href="/ai-lab"
-              className="hover:text-foreground transition-colors whitespace-nowrap shrink-0 link-underline py-1"
-            >
-              {fa ? "آزمایشگاه AI" : "AI Lab"}
-            </Link>
-            <Link
-              href="/resources"
-              className="hover:text-foreground transition-colors whitespace-nowrap shrink-0 link-underline py-1"
-            >
-              {fa ? "منابع" : "Resources"}
-            </Link>
-            <Link
-              href="/blog"
-              className="hover:text-foreground transition-colors whitespace-nowrap shrink-0 link-underline py-1"
-            >
-              {fa ? "بلاگ" : "Journal"}
-            </Link>
+            {resolvedItems.slice(0, 6).map((item, idx) => {
+              const label = item.labelKey
+                ? t.menu[item.labelKey]
+                : fa
+                  ? item.labelFa || item.labelEn || ""
+                  : item.labelEn || item.labelFa || "";
+              const isHash = item.href.startsWith("#") || item.href.startsWith("/#");
+              if (isHash) {
+                return (
+                  <a
+                    key={`${item.href}-${idx}`}
+                    href={item.href}
+                    className="hover:text-foreground transition-colors whitespace-nowrap shrink-0 link-underline py-1"
+                  >
+                    {label}
+                  </a>
+                );
+              }
+              return (
+                <Link
+                  key={`${item.href}-${idx}`}
+                  href={item.href}
+                  className="hover:text-foreground transition-colors whitespace-nowrap shrink-0 link-underline py-1"
+                >
+                  {label}
+                </Link>
+              );
+            })}
           </nav>
 
-          {/* Zone 3: Account / Lang / Search / Menu controls */}
+          {/* Zone 3: Account / Theme / Lang / Search / Menu controls */}
           <div className="flex items-center gap-1 sm:gap-2 shrink-0">
             <SmartSearchTrigger variant="icon" />
+            <ThemeToggle variant="academy" />
             <Link
               href={portalRole === "staff" ? "/dashboard/" : portalRole === "student" ? "/panel/" : "/login/"}
               prefetch={false}

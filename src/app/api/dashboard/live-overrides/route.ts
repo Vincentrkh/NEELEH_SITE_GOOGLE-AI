@@ -1,3 +1,4 @@
+import { revalidatePath, revalidateTag } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requirePermission } from "@/lib/auth";
@@ -43,6 +44,8 @@ async function writeRules(rules: LiveOverrideRule[]): Promise<void> {
       label: "قوانین ویرایش زنده صحنه (بازرس ادمین)",
     },
   });
+  revalidateTag("live-overrides", { expire: 0 });
+  revalidatePath("/", "layout");
 }
 
 export async function GET() {

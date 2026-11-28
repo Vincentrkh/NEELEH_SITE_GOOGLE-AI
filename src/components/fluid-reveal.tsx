@@ -578,9 +578,14 @@ export function FluidReveal({
     }
 
     // Parse maskColor CSS → RGB [0..1].
-    // We use a temp <div> with backgroundColor=resolved color, which forces the
-    // browser to compute the final sRGB value (handles oklch/lab() → rgb()).
+    // Uses a 1x1 2D canvas to convert any modern CSS color (oklch/lab/var)
+    // accurately into sRGB [0..255] bytes for WebGL uniforms.
     let maskRGB: [number, number, number] = [1, 1, 1];
+    const colorCanvas = document.createElement("canvas");
+    colorCanvas.width = 1;
+    colorCanvas.height = 1;
+    const colorCtx = colorCanvas.getContext("2d", { willReadFrequently: true });
+
     function updateMaskColor() {
       const source = maskColor
         ? maskColor
@@ -591,6 +596,18 @@ export function FluidReveal({
       document.body.appendChild(probe);
       const resolved = getComputedStyle(probe).backgroundColor;
       probe.remove();
+
+      if (colorCtx) {
+        colorCtx.clearRect(0, 0, 1, 1);
+        colorCtx.fillStyle = resolved || source;
+        colorCtx.fillRect(0, 0, 1, 1);
+        const px = colorCtx.getImageData(0, 0, 1, 1).data;
+        if (px[3] > 0) {
+          maskRGB = [px[0] / 255, px[1] / 255, px[2] / 255];
+          return;
+        }
+      }
+
       const m = resolved.match(/[\d.]+/g);
       if (m && m.length >= 3) {
         maskRGB = [

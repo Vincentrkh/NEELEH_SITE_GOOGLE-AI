@@ -497,14 +497,14 @@ server.tool(
   }
 );
 
-// ── منوها (مدیریت کامل منوی هدر و فوتر) ─────────────────────────────────────
-const MENU_LOCATIONS = ["header", "footer"] as const;
+// ── منوها (مدیریت کامل منوی هدر و فوتر آکادمی و دفتر) ──────────────────────────
+const MENU_LOCATIONS = ["header", "footer", "office_header", "office_footer"] as const;
 const MENU_KINDS = ["block", "archive"] as const;
 const COLOR_RE = /^#[0-9a-fA-F]{3,8}$/;
 
 server.tool(
   "list_menu_items",
-  "فهرست آیتم‌های منو با فیلتر location (header=منوی همبرگری پلکانی، footer=ستون دسترسی سریع فوتر). شامل آیتم‌های غیرفعال هم می‌شود.",
+  "فهرست آیتم‌های منو با فیلتر location (header/footer برای آکادمی نیله و office_header/office_footer برای دفتر نیله). شامل آیتم‌های غیرفعال هم می‌شود.",
   { location: z.enum(MENU_LOCATIONS).optional() },
   async ({ location }) => {
     const items = await db.menuItem.findMany({
@@ -519,6 +519,8 @@ server.tool(
           byLocation: {
             header: items.filter((i) => i.location === "header").length,
             footer: items.filter((i) => i.location === "footer").length,
+            office_header: items.filter((i) => i.location === "office_header").length,
+            office_footer: items.filter((i) => i.location === "office_footer").length,
           },
           items: items.map((i) => ({
             id: i.id, location: i.location, labelFa: i.labelFa, labelEn: i.labelEn,
@@ -533,7 +535,7 @@ server.tool(
 
 server.tool(
   "create_menu_item",
-  "افزودن آیتم به منو. location: header (بلوک پلکانی) یا footer (لینک سریع). href می‌تواند مسیر داخلی (/courses)، لنگر (#top) یا URL کامل باشد. bgColor فقط برای header و با فرمت #RRGGBB. kind: block (بلوک اصلی) یا archive (آرشیو). fillIndicator فقط header و مربع شماره را توپُر می‌کند.",
+  "افزودن آیتم به منو. location: header/footer (آکادمی) یا office_header/office_footer (دفتر). href می‌تواند مسیر داخلی (/courses)، لنگر (#top) یا URL کامل باشد.",
   {
     location: z.enum(MENU_LOCATIONS),
     labelFa: z.string().min(1),
@@ -634,14 +636,12 @@ server.tool(
 
 server.tool(
   "reset_menus",
-  "بازنشانی همه منوها به مقادیر پیش‌فرض (منوی اصلی سایت). همه تغییرات از بین می‌روند. برای بازگشت به وضعیت اولیه.",
-  {},
-  async () => {
-    await db.menuItem.deleteMany({});
-    // بارگذاری presetها و درج
-    const { PRESET_MENU } = await import("@/lib/menu-defaults");
-    await db.menuItem.createMany({ data: PRESET_MENU.map(({ id: _id, ...rest }) => rest) });
-    return { content: [{ type: "text" as const, text: `✅ منوها به ${PRESET_MENU.length} آیتم پیش‌فرض بازنشانی شدند.` }] };
+  "بازنشانی منوها به مقادیر پیش‌فرض (اختیاری: division = 'academy' | 'office' | 'all').",
+  { division: z.enum(["all", "academy", "office"]).optional() },
+  async ({ division }) => {
+    const { seedDefaultMenus } = await import("@/lib/menu");
+    const count = await seedDefaultMenus(true, division ?? "all");
+    return { content: [{ type: "text" as const, text: `✅ منوهای ${division ?? "all"} به ${count} آیتم پیش‌فرض بازنشانی شدند.` }] };
   }
 );
 

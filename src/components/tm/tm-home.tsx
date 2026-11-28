@@ -13,6 +13,8 @@ import {
 } from "@/components/tm/tm-sections";
 import { TMX_STRATEGIES, TMX_CITIES } from "@/config/tm-theme";
 import { getServerLang } from "@/lib/i18n";
+import { getMenu } from "@/lib/menu";
+import { getCurrentUser, getPortalRole } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -29,14 +31,20 @@ export const dynamic = "force-dynamic";
  *   8. TmFooter          (#F2F2F2 unified footer: CTA + horizontal 5-plate SVG strip + legal bar)
  */
 export async function TmHome() {
-  const data = await loadTmData();
+  const [data, officeHeaderMenu, officeFooterMenu, currentUser] = await Promise.all([
+    loadTmData(),
+    getMenu("office_header"),
+    getMenu("office_footer"),
+    getCurrentUser().catch(() => null),
+  ]);
+  const initialPortalRole = getPortalRole(currentUser);
 
   return (
-    <main className="tm-root" style={{ background: "#fff", color: "#2b2b2b" }}>
+    <main className="tm-root">
       <TmSmoothScroll />
       <TmCursor />
       <TmScrollProgress />
-      <TmHeader />
+      <TmHeader menu={officeHeaderMenu} initialPortalRole={initialPortalRole} />
 
       {/* Band 1 */}
       <TmHero />
@@ -44,10 +52,10 @@ export async function TmHome() {
       {/* Band 2 */}
       <TmTextBlock
         id="about-intro"
-        eyebrow={{ fa: "درباره آکادمی نیله", en: "About Neeleh" }}
+        eyebrow={{ fa: "درباره دفتر معماری نیله", en: "About Neeleh Office" }}
         text={{
-          fa: "آکادمی تخصصی سیستم‌های هوشمند معماری — از ترسیم فاز دوم تا BIM، دیزاین محاسباتی و معماری افزوده با هوش مصنوعی.",
-          en: "An architecture education studio helping professionals master execution drafting, BIM, and AI-augmented systems.",
+          fa: "دفتر تخصصی معماری و سیستم‌های هوشمند BIM — از طراحی مفهومی و ترسیم فاز دوم تا مدیریت اجرا و معماری افزوده با هوش مصنوعی.",
+          en: "An architecture & BIM engineering practice delivering Phase-2 documentation, design systems, and AI-augmented workflows.",
         }}
       />
 
@@ -57,10 +65,10 @@ export async function TmHome() {
       {/* Band 4 */}
       <TmTextBlock
         id="strategy-intro"
-        eyebrow={{ fa: "معماری آموزش", en: "Educational architecture" }}
+        eyebrow={{ fa: "رویکرد حرفه‌ای دفتر", en: "Practice methodology" }}
         text={{
-          fa: "چهار ستون آموزشی ما بر پایه تجربه اجرا بنا شده‌اند؛ از میز نقشه‌کشی تا گردش‌کار هوشمند معماری.",
-          en: "Our four core pillars guide architects across every career stage, from technical documentation to AI studios.",
+          fa: "چهار رکن اصلی دفتر نیله بر پایه تجربه ساخت‌و‌ساز واقعی بنا شده‌اند؛ از اسکیس تا جزئیات اجرایی و اتوماسیون هوشمند.",
+          en: "Our four studio pillars bridge real-world construction craft, BIM governance, and computational intelligence.",
         }}
       />
 
@@ -80,7 +88,7 @@ export async function TmHome() {
       <TmTeam instructors={data.instructors} />
 
       {/* Band 8 */}
-      <TmFooter />
+      <TmFooter menu={officeFooterMenu} />
     </main>
   );
 }

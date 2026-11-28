@@ -11,9 +11,19 @@ import {
   validateGitRepoUrl,
 } from "@/lib/crypto-vault";
 
+import {
+  LEGACY_UPDATE_BACKUP_DIR,
+  deleteSafeBackupArchive,
+  ensureWritableBackupDir,
+  extractAndRestoreBackupArchive,
+  isPathInsideAllowedBackupDirs,
+  listBackupArchives,
+  resolveSafeBackupPath,
+} from "@/lib/backup-manager";
+
 const execFileAsync = promisify(execFile);
 
-export const UPDATE_BACKUP_DIR = path.join(os.tmpdir(), "neeleh-update-backups");
+export const UPDATE_BACKUP_DIR = LEGACY_UPDATE_BACKUP_DIR;
 
 function isAppRootCandidate(dir: string): boolean {
   const parts = path.resolve(dir).split(path.sep);
@@ -103,6 +113,21 @@ export async function getSafeUpdateStatus() {
     // ignore
   }
 
+  const archives = await listBackupArchives(root);
+  const logByFile = new Map<
+    string,
+    { trigger: string; commit: string | null; summary: string | null }
+  >();
+  for (const l of logs) {
+    if (l.backupPath) {
+      logByFile.set(path.basename(l.backupPath), {
+        trigger: l.trigger,
+        commit: l.toCommit || l.fromCommit,
+        summary: l.summary,
+      });
+    }
+  }
+
   return {
     config: {
       repoUrl: cfg.repoUrl,
@@ -149,6 +174,18 @@ export async function getSafeUpdateStatus() {
       durationMs: l.durationMs,
       createdAt: l.createdAt.toISOString(),
     })),
+    backups: archives.map((a) => {
+      const matched = logByFile.get(a.filename);
+      return {
+        filename: a.filename,
+        source: a.source,
+        sizeBytes: a.sizeBytes,
+        createdAt: a.createdAt,
+        modifiedAt: a.modifiedAt,
+        trigger: matched?.trigger ?? null,
+        commit: matched?.commit ?? null,
+      };
+    }),
   };
 }
 
@@ -232,10 +269,11 @@ function buildGitArgs(root: string, args: string[]): string[] {
   return ["-c", "safe.directory=*", "-c", `safe.directory=${normRoot}`, ...args];
 }
 
-export async function createPreUpdateSnapshot(): Promise<string> {
+export async function createPreUpdateSnapshot(prefix = "pre-update"): Promise<string> {
   const root = resolveAppRoot();
-  await fs.promises.mkdir(UPDATE_BACKUP_DIR, { recursive: true });
-  const zipPath = path.join(UPDATE_BACKUP_DIR, `pre-update-${Date.now()}.zip`);
+  const targetDir = await ensureWritableBackupDir(root);
+  const safePrefix = /^[a-zA-Z0-9_-]+$/.test(prefix) ? prefix : "snapshot";
+  const zipPath = path.join(targetDir, `${safePrefix}-${Date.now()}.zip`);
   const scriptPath = path.join(root, "scripts", "create-backup-zip.py");
 
   for (const py of IS_WIN ? ["python", "python3"] : ["python3", "python"]) {
@@ -1200,61 +1238,17 @@ export async function rollbackDatabaseFromLog(logId: string, actorId: string) {
   if (!log || !log.backupPath) {
     return { ok: false, error: "فایل بکاپ برای این رکورد یافت نشد.", errorEn: "Backup archive not found." };
   }
+  const root = resolveAppRoot();
   const resolved = path.resolve(log.backupPath);
-  const baseDir = path.resolve(UPDATE_BACKUP_DIR);
-  if (!resolved.startsWith(baseDir + path.sep) || !fs.existsSync(resolved)) {
+  if (!isPathInsideAllowedBackupDirs(resolved, root) || !fs.existsSync(resolved)) {
     return { ok: false, error: "مسیر بکاپ معتبر یا موجود نیست.", errorEn: "Invalid or missing backup file." };
   }
 
   const startedAt = Date.now();
-  const root = resolveAppRoot();
-  const extractTmp = path.join(os.tmpdir(), `neeleh-rollback-${Date.now()}`);
   try {
-    await fs.promises.mkdir(extractTmp, { recursive: true });
-    let extractedOk = false;
-    for (const py of IS_WIN ? ["python", "python3"] : ["python3", "python"]) {
-      try {
-        await execFileAsync(
-          py,
-          [
-            "-c",
-            "import sys, zipfile; z=zipfile.ZipFile(sys.argv[1]); z.extractall(sys.argv[2])",
-            resolved,
-            extractTmp,
-          ],
-          { timeout: 60_000 },
-        );
-        extractedOk = true;
-        break;
-      } catch {
-        // try next
-      }
-    }
-    if (!extractedOk && IS_WIN) {
-      await execFileAsync(
-        "powershell",
-        [
-          "-NoProfile",
-          "-Command",
-          `Expand-Archive -Path '${resolved.replace(/'/g, "''")}' -DestinationPath '${extractTmp.replace(/'/g, "''")}' -Force`,
-        ],
-        { timeout: 60_000 },
-      );
-      extractedOk = true;
-    }
-    if (!extractedOk) {
-      throw new Error("Could not extract backup zip archive.");
-    }
-    const candidates = [
-      path.join(extractTmp, "neeleh-academy", "db", "custom.db"),
-      path.join(extractTmp, "db", "custom.db"),
-      path.join(extractTmp, "custom.db"),
-    ];
-    const extractedDb = candidates.find((c) => fs.existsSync(c));
-    const targetDb = path.join(root, "db", "custom.db");
-    if (extractedDb) {
-      await fs.promises.copyFile(extractedDb, targetDb);
-    }
+    // Take a safety snapshot before overwriting db/custom.db
+    await createPreUpdateSnapshot("pre-restore").catch(() => "");
+    await extractAndRestoreBackupArchive(resolved, root);
 
     await db.systemUpdateLog.create({
       data: {
@@ -1263,7 +1257,7 @@ export async function rollbackDatabaseFromLog(logId: string, actorId: string) {
         fromCommit: log.toCommit,
         toCommit: log.fromCommit,
         backupPath: resolved,
-        summary: `بازگردانی دیتابیس از بکاپ پیش از بروزرسانی (${log.fromCommit ?? "snapshot"})`,
+        summary: `بازگردانی دیتابیس از بکاپ (${path.basename(resolved)})`,
         durationMs: Date.now() - startedAt,
         actorId,
       },
@@ -1272,9 +1266,66 @@ export async function rollbackDatabaseFromLog(logId: string, actorId: string) {
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Rollback failed";
     return { ok: false, error: msg, errorEn: msg };
-  } finally {
-    await fs.promises.rm(extractTmp, { recursive: true, force: true }).catch(() => {});
   }
+}
+
+export async function restoreBackupByFilename(filename: string, actorId: string) {
+  const root = resolveAppRoot();
+  const found = await resolveSafeBackupPath(filename, root);
+  if (!found) {
+    return {
+      ok: false,
+      error: "فایل بکاپ در مسیر مجاز یافت نشد.",
+      errorEn: "Backup archive not found.",
+    };
+  }
+
+  const startedAt = Date.now();
+  const cfg = await ensureUpdateConfig();
+  try {
+    const safetyZip = await createPreUpdateSnapshot("pre-restore").catch(() => "");
+    const { uploadsRestoredCount } = await extractAndRestoreBackupArchive(found.path, root);
+    const safetyNote = safetyZip ? ` (بکاپ ایمنی قبلی: ${path.basename(safetyZip)})` : "";
+    const uploadsNote =
+      uploadsRestoredCount > 0 ? ` · ${uploadsRestoredCount} فایل آپلود بازگردانی شد` : "";
+
+    await db.systemUpdateLog.create({
+      data: {
+        trigger: "ROLLBACK",
+        status: "ROLLED_BACK",
+        fromCommit: cfg.currentCommit,
+        toCommit: cfg.currentCommit,
+        backupPath: found.path,
+        summary: `بازگردانی از بکاپ ${filename}${uploadsNote}${safetyNote}`.slice(0, 350),
+        durationMs: Date.now() - startedAt,
+        actorId,
+      },
+    });
+
+    return {
+      ok: true,
+      message: `دیتابیس و فایل‌ها با موفقیت از «${filename}» بازگردانی شدند${safetyNote}.`,
+    };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Restore failed";
+    return { ok: false, error: msg, errorEn: msg };
+  }
+}
+
+export async function deleteBackupByFilename(filename: string) {
+  const root = resolveAppRoot();
+  const deleted = await deleteSafeBackupArchive(filename, root);
+  if (!deleted) {
+    return {
+      ok: false,
+      error: "فایل بکاپ برای حذف یافت نشد.",
+      errorEn: "Backup archive not found.",
+    };
+  }
+  return {
+    ok: true,
+    message: `فایل بکاپ «${filename}» حذف شد.`,
+  };
 }
 
 const globalForScheduler = globalThis as unknown as {

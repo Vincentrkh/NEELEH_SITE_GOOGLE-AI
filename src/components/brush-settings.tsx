@@ -77,7 +77,7 @@ function isValidImageUrl(url: string) {
   return /^(https?:\/\/|data:image\/)/i.test(url.trim());
 }
 
-const ringActive = "ring-2 ring-black ring-offset-1 ring-offset-white";
+const ringActive = "ring-2 ring-foreground ring-offset-1 ring-offset-background";
 
 type BrushSettingsProps = {
   /** Current splat radius (owned by the page, passed to <FluidReveal>). */
@@ -223,8 +223,8 @@ export function BrushSettings({
       onClick={() => setBgTab(tab)}
       className={`touch-hit relative rounded-full px-2 py-1 text-[9px] font-medium uppercase tracking-wider transition-colors max-[991px]:px-2.5 max-[991px]:py-1.5 ${
         bgTab === tab
-          ? "bg-black text-white"
-          : "text-black/50 hover:bg-black/5 hover:text-black"
+          ? "bg-foreground text-background"
+          : "text-muted-foreground hover:bg-secondary hover:text-foreground"
       }`}
     >
       {label}
@@ -238,7 +238,7 @@ export function BrushSettings({
       className="brush-panel fixed bottom-4 right-4 z-[80]"
     >
       {open ? (
-        <div className="w-[302px] max-w-[calc(100vw-2.5rem)] rounded-2xl border border-black/10 bg-white/85 p-3 shadow-[0_2px_20px_rgba(0,0,0,0.08)] backdrop-blur-md">
+        <div className="w-[302px] max-w-[calc(100vw-2.5rem)] rounded-2xl border border-border bg-card/90 text-foreground p-3 shadow-[0_2px_20px_rgba(0,0,0,0.12)] backdrop-blur-md">
           {/* ── Row 1: trail brush ─────────────────────────────────── */}
           <div className="flex flex-nowrap items-center gap-2 max-[991px]:flex-wrap">
             {/* Relative size preview dot */}
@@ -247,12 +247,12 @@ export function BrushSettings({
               aria-hidden="true"
             >
               <span
-                className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-black transition-[width,height] duration-200"
+                className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-foreground transition-[width,height] duration-200"
                 style={{ width: dotPx(value), height: dotPx(value) }}
               />
             </span>
 
-            <span className="select-none text-[10px] font-medium uppercase tracking-[0.18em] text-black/50">
+            <span className="select-none text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
               {t.settings.trail}
             </span>
 
@@ -260,7 +260,7 @@ export function BrushSettings({
               type="button"
               aria-label="Smaller trail"
               onClick={() => onChange(snap(value - STEP))}
-              className="touch-hit relative flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-black/15 text-black/70 transition-colors hover:bg-black hover:text-white max-[991px]:h-8 max-[991px]:w-8"
+              className="touch-hit relative flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:bg-foreground hover:text-background max-[991px]:h-8 max-[991px]:w-8"
             >
               <Minus size={11} strokeWidth={2} />
             </button>
@@ -280,12 +280,12 @@ export function BrushSettings({
               type="button"
               aria-label="Bigger trail"
               onClick={() => onChange(snap(value + STEP))}
-              className="touch-hit relative flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-black/15 text-black/70 transition-colors hover:bg-black hover:text-white max-[991px]:h-8 max-[991px]:w-8"
+              className="touch-hit relative flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:bg-foreground hover:text-background max-[991px]:h-8 max-[991px]:w-8"
             >
               <Plus size={11} strokeWidth={2} />
             </button>
 
-            <span className="w-9 shrink-0 select-none text-end text-[10px] font-medium tabular-nums text-black/80">
+            <span className="w-9 shrink-0 select-none text-end text-[10px] font-medium tabular-nums text-foreground/85">
               {lang === "fa" ? `${toFaDigits(pct)}٪` : `${pct}%`}
             </span>
 
@@ -294,18 +294,18 @@ export function BrushSettings({
               aria-label="Hide panel"
               title="Hide ( [ / ] adjusts size )"
               onClick={() => setOpen(false)}
-              className="touch-hit relative flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-black/40 transition-colors hover:bg-black/5 hover:text-black max-[991px]:h-8 max-[991px]:w-8"
+              className="touch-hit relative flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground max-[991px]:h-8 max-[991px]:w-8"
             >
               <X size={12} strokeWidth={2} />
             </button>
           </div>
 
           {/* divider */}
-          <div className="my-2.5 h-px bg-black/10" />
+          <div className="my-2.5 h-px bg-border" />
 
           {/* ── Row 2: reveal background ───────────────────────────── */}
           <div className="mb-2 mt-2.5 flex flex-wrap items-center gap-1 max-[991px]:mt-2">
-            <span className="me-1 select-none text-[10px] font-medium uppercase tracking-[0.18em] text-black/50">
+            <span className="me-1 select-none text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
               {t.settings.bg}
             </span>
             {tabBtn("color", t.settings.solid)}
@@ -319,7 +319,7 @@ export function BrushSettings({
               aria-label="Reset reveal background"
               title="Reset (transparent)"
               onClick={() => onBgChange(DEFAULT_REVEAL_BG)}
-              className="touch-hit relative flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-black/40 transition-colors hover:bg-black/5 hover:text-black max-[991px]:h-8 max-[991px]:w-8"
+              className="touch-hit relative flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground max-[991px]:h-8 max-[991px]:w-8"
             >
               <RotateCcw size={11} strokeWidth={2} />
             </button>
@@ -361,7 +361,7 @@ export function BrushSettings({
                 />
               </label>
               {bg.mode === "color" && (
-                <span className="ms-1 select-none text-[9px] tabular-nums text-black/50">
+                <span className="ms-1 select-none text-[9px] tabular-nums text-muted-foreground">
                   {bg.value}
                 </span>
               )}
@@ -379,7 +379,7 @@ export function BrushSettings({
                     aria-label="BG image preset"
                     onClick={() => pickBg("image", imageUrlToBg(u))}
                     style={{ backgroundImage: `url(${u})` }}
-                    className={`touch-hit relative h-7 w-9 rounded-md border border-black/15 bg-cover bg-center transition-shadow max-[991px]:h-9 max-[991px]:w-12 ${
+                    className={`touch-hit relative h-7 w-9 rounded-md border border-border bg-cover bg-center transition-shadow max-[991px]:h-9 max-[991px]:w-12 ${
                       bg.mode === "image" && bg.value.includes(u)
                         ? ringActive
                         : ""
@@ -397,13 +397,13 @@ export function BrushSettings({
                   }}
                   placeholder="https://image-url…"
                   spellCheck={false}
-                  className="h-6 min-w-0 flex-1 rounded-md border border-black/15 bg-white/60 px-2 text-[10px] text-black/80 outline-none placeholder:text-black/30 focus:border-black/40"
+                  className="h-6 min-w-0 flex-1 rounded-md border border-border bg-background/70 px-2 text-[10px] text-foreground outline-none placeholder:text-muted-foreground focus:border-foreground/40"
                 />
                 <button
                   type="button"
                   aria-label="Apply image URL"
                   onClick={applyImgUrl}
-                  className="touch-hit relative rounded-md bg-black px-2 py-1 text-[9px] font-medium uppercase tracking-wider text-white transition-opacity hover:opacity-80 max-[991px]:px-3 max-[991px]:py-2"
+                  className="touch-hit relative rounded-md bg-foreground px-2 py-1 text-[9px] font-medium uppercase tracking-wider text-background transition-opacity hover:opacity-80 max-[991px]:px-3 max-[991px]:py-2"
                 >
                   Set
                 </button>
@@ -422,7 +422,7 @@ export function BrushSettings({
                   aria-label="BG gradient preset"
                   onClick={() => pickBg("gradient", g)}
                   style={{ background: g }}
-                  className={`touch-hit relative h-5 w-8 rounded-full border border-black/15 transition-shadow max-[991px]:h-7 max-[991px]:w-10 ${
+                  className={`touch-hit relative h-5 w-8 rounded-full border border-border transition-shadow max-[991px]:h-7 max-[991px]:w-10 ${
                     bg.mode === "gradient" && bg.value === g ? ringActive : ""
                   }`}
                 />
@@ -439,9 +439,9 @@ export function BrushSettings({
                     `linear-gradient(135deg, ${e.target.value}, ${gradB})`
                   );
                 }}
-                className="h-5 w-5 cursor-pointer rounded-full border border-black/15 bg-transparent p-0 max-[991px]:h-7 max-[991px]:w-7"
+                className="h-5 w-5 cursor-pointer rounded-full border border-border bg-transparent p-0 max-[991px]:h-7 max-[991px]:w-7"
               />
-              <span className="select-none text-[9px] text-black/40">→</span>
+              <span className="select-none text-[9px] text-muted-foreground">→</span>
               <input
                 type="color"
                 aria-label="Gradient end color"
@@ -453,7 +453,7 @@ export function BrushSettings({
                     `linear-gradient(135deg, ${gradA}, ${e.target.value})`
                   );
                 }}
-                className="h-5 w-5 cursor-pointer rounded-full border border-black/15 bg-transparent p-0 max-[991px]:h-7 max-[991px]:w-7"
+                className="h-5 w-5 cursor-pointer rounded-full border border-border bg-transparent p-0 max-[991px]:h-7 max-[991px]:w-7"
               />
             </div>
           )}
@@ -464,10 +464,10 @@ export function BrushSettings({
           aria-label="Open canvas settings"
           title="Canvas settings"
           onClick={() => setOpen(true)}
-          className="touch-hit relative flex h-8 w-8 items-center justify-center rounded-full border border-black/10 bg-white/90 shadow-[0_2px_20px_rgba(0,0,0,0.08)] backdrop-blur-md transition-transform hover:scale-110 max-[991px]:h-11 max-[991px]:w-11"
+          className="touch-hit relative flex h-8 w-8 items-center justify-center rounded-full border border-border bg-card/90 shadow-[0_2px_20px_rgba(0,0,0,0.12)] backdrop-blur-md transition-transform hover:scale-110 max-[991px]:h-11 max-[991px]:w-11"
         >
           <span
-            className="rounded-full bg-black"
+            className="rounded-full bg-foreground"
             style={{ width: dotPx(value), height: dotPx(value) }}
             aria-hidden="true"
           />

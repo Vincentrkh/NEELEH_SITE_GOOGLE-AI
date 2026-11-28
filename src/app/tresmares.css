@@ -32,6 +32,15 @@
   --tm-overlay: #18181a;
   --tm-hairline: rgba(43, 43, 43, 0.14);
   --tm-border-strong: rgba(43, 43, 43, 0.28);
+  --tm-header-bg: rgba(247, 247, 247, 0.78);
+  --tm-header-bg-scrolled: rgba(247, 247, 247, 0.94);
+  --tm-callout-bg: #ffffff;
+  --tm-plate-bg: #efefef;
+  --tm-card-surface: #fafafa;
+  --tm-card-hover: #ffffff;
+  --tm-path-bg: #f5f5f3;
+  --tm-path-hover: #ecece9;
+  --tm-btn-ink: #ffffff;
   --tm-header-h: 72px;
   --tm-radius: 4px;
 
@@ -70,8 +79,44 @@
 
 [data-skin="tresmares"].dark,
 .dark [data-skin="tresmares"] {
-  --background: #ffffff;
-  --foreground: #2b2b2b;
+  --tm-white: #0c0d10;
+  --tm-lightest: #14161a;
+  --tm-lighter: #181a20;
+  --tm-light: #20232b;
+  --tm-medium: #1a1d24;
+  --tm-dark: #a6aab5;
+  --tm-muted: rgba(242, 242, 238, 0.62);
+  --tm-darkest: #f2f2ee;
+  --tm-black: #ffffff;
+  --tm-overlay: #050507;
+  --tm-hairline: rgba(242, 242, 238, 0.14);
+  --tm-border-strong: rgba(242, 242, 238, 0.28);
+  --tm-header-bg: rgba(12, 13, 16, 0.82);
+  --tm-header-bg-scrolled: rgba(12, 13, 16, 0.94);
+  --tm-callout-bg: #15171c;
+  --tm-plate-bg: #181a20;
+  --tm-card-surface: #14161a;
+  --tm-card-hover: #1d2026;
+  --tm-path-bg: #14161a;
+  --tm-path-hover: #1d2026;
+  --tm-btn-ink: #0c0d10;
+
+  --background: #0c0d10;
+  --foreground: #f2f2ee;
+  --card: #14161a;
+  --card-foreground: #f2f2ee;
+  --popover: #181a20;
+  --popover-foreground: #f2f2ee;
+  --primary: #e41613;
+  --primary-foreground: #ffffff;
+  --secondary: #1e2128;
+  --secondary-foreground: #f2f2ee;
+  --muted: #1e2128;
+  --muted-foreground: #a6aab5;
+  --accent: #222630;
+  --accent-foreground: #f2f2ee;
+  --border: rgba(242, 242, 238, 0.14);
+  --input: rgba(242, 242, 238, 0.22);
 }
 
 html[data-skin="tresmares"] {
@@ -226,42 +271,45 @@ html.lenis body {
   right: 0;
   z-index: 3030;
   height: var(--tm-header-h);
-  background: rgba(247, 247, 247, 0.78);
+  background: var(--tm-header-bg);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  border-bottom: 1px solid rgba(43, 43, 43, 0.14);
+  border-bottom: 1px solid var(--tm-hairline);
   transition:
     background-color 0.35s var(--tm-ease-p2out),
     border-color 0.35s var(--tm-ease-p2out),
     box-shadow 0.35s var(--tm-ease-p2out);
 }
 .tm-header[data-scrolled="true"] {
-  background: rgba(247, 247, 247, 0.94);
-  border-bottom-color: rgba(43, 43, 43, 0.18);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+  background: var(--tm-header-bg-scrolled);
+  border-bottom-color: var(--tm-border-strong);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
 }
 .tm-header__inner {
   height: 100%;
-  padding-inline-start: clamp(20px, 2.8vw, 48px);
+  padding-inline-start: clamp(12px, 2.8vw, 48px);
   padding-inline-end: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
+  gap: clamp(8px, 1.5vw, 20px);
 }
 
 .tm-logo {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   min-height: 44px;
   text-decoration: none;
   color: var(--tm-darkest);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .tm-logo__mark {
   width: 24px;
   height: 15px;
   display: block;
+  flex-shrink: 0;
 }
 .tm-logo__mark path,
 .tm-logo__mark polygon {
@@ -272,11 +320,12 @@ html.lenis body {
   fill: var(--tm-main);
 }
 .tm-logo__text {
-  font-size: 13.5px;
+  font-size: clamp(11.5px, 2.8vw, 13.5px);
   font-weight: 700;
-  letter-spacing: 0.28em;
+  letter-spacing: clamp(0.14em, 1.4vw, 0.26em);
   text-transform: uppercase;
   line-height: 1;
+  white-space: nowrap;
 }
 .tm-logo__sub {
   display: block;
@@ -356,13 +405,32 @@ html.lenis body {
   align-items: stretch;
   height: 100%;
 }
+.tm-theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+  min-height: 44px;
+  height: 100%;
+  padding-inline: clamp(8px, 1.5vw, 12px);
+  background: transparent;
+  border: 0;
+  border-inline-start: 1px solid var(--tm-hairline);
+  color: var(--tm-darkest);
+  cursor: pointer;
+  transition: color 0.25s var(--tm-ease-p2out);
+}
+.tm-theme-toggle:hover {
+  color: var(--tm-main);
+}
+
 .tm-lang-inline {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding-inline: 18px;
+  padding-inline: clamp(8px, 2vw, 18px);
   height: 100%;
-  border-inline-start: 1px solid rgba(43, 43, 43, 0.14);
+  border-inline-start: 1px solid var(--tm-hairline);
 }
 .tm-lang-opt {
   background: none;
@@ -372,7 +440,7 @@ html.lenis body {
   font-size: 12px;
   font-weight: 500;
   letter-spacing: 0.08em;
-  color: rgba(43, 43, 43, 0.42);
+  color: var(--tm-muted);
   cursor: pointer;
   transition: color 0.25s var(--tm-ease-p2out);
 }
@@ -385,7 +453,7 @@ html.lenis body {
 }
 .tm-lang-sep {
   font-size: 11px;
-  color: rgba(43, 43, 43, 0.26);
+  color: var(--tm-hairline);
 }
 
 .tm-btn-dark {
@@ -395,7 +463,7 @@ html.lenis body {
   min-height: 44px;
   padding: 0 26px;
   background: var(--tm-darkest);
-  color: #ffffff;
+  color: var(--tm-btn-ink);
   font-size: 12.5px;
   font-weight: 500;
   letter-spacing: 0.03em;
@@ -860,7 +928,7 @@ html.lenis body {
   font-weight: 500;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: rgba(43, 43, 43, 0.56);
+  color: var(--tm-muted);
 }
 
 @media (max-width: 767px) {
@@ -1001,7 +1069,7 @@ html.lenis body {
 
 .tm-numcell {
   background: var(--tm-white);
-  border: 1px solid rgba(43, 43, 43, 0.12);
+  border: 1px solid var(--tm-hairline);
   padding: clamp(26px, 2.8vw, 38px);
   display: flex;
   flex-direction: column;
@@ -1010,7 +1078,7 @@ html.lenis body {
   transition: border-color 0.35s var(--tm-ease-p2out);
 }
 .tm-numcell:hover {
-  border-color: rgba(43, 43, 43, 0.32);
+  border-color: var(--tm-border-strong);
 }
 .tm-numcell__value {
   font-family: var(--tm-serif);
@@ -1090,6 +1158,12 @@ html.lenis body {
   mix-blend-mode: multiply;
   pointer-events: none;
 }
+[data-skin="tresmares"].dark .tm-solutions__sculpture,
+.dark [data-skin="tresmares"] .tm-solutions__sculpture,
+[data-skin="tresmares"].dark .tm-solutions__title-wrap,
+.dark [data-skin="tresmares"] .tm-solutions__title-wrap {
+  mix-blend-mode: normal;
+}
 .tm-strategy__sculpture-svg {
   width: min(82vw, 980px);
   height: 96%;
@@ -1154,7 +1228,7 @@ html.lenis body {
   padding: 4px 0;
   font-size: 13.5px;
   font-weight: 400;
-  color: rgba(43, 43, 43, 0.44);
+  color: var(--tm-muted);
   cursor: pointer;
   transition: color 0.25s var(--tm-ease-p2out);
 }
@@ -1326,9 +1400,9 @@ html.lenis body {
   aspect-ratio: 1;
   border-radius: 6px;
   overflow: hidden;
-  border: 1px solid rgba(43, 43, 43, 0.14);
-  background: #efefef;
-  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.06);
+  border: 1px solid var(--tm-hairline);
+  background: var(--tm-plate-bg);
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.08);
 }
 .tm-arc__label {
   display: block;
@@ -1369,9 +1443,9 @@ html.lenis body {
   min-width: 200px;
   max-width: 248px;
   padding: 16px 18px;
-  background: #ffffff;
-  border: 1px solid rgba(43, 43, 43, 0.14);
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.09);
+  background: var(--tm-callout-bg);
+  border: 1px solid var(--tm-hairline);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.16);
   pointer-events: none;
   animation: tmCalloutIn 0.28s var(--tm-ease-expo) forwards;
 }
@@ -1524,7 +1598,7 @@ html.lenis body {
 .tm-teamcard__photo {
   aspect-ratio: 331 / 460;
   overflow: hidden;
-  background: #efefef;
+  background: var(--tm-plate-bg);
 }
 .tm-teamcard__photo svg {
   transition: transform 0.8s var(--tm-ease-expo);
@@ -1546,7 +1620,7 @@ html.lenis body {
   color: var(--tm-darkest);
 }
 
-/* ═══ 12. BAND 8: UNIFIED #F2F2F2 TRES MARES FOOTER ═════════════════════════ */
+/* ═══ 12. BAND 8: UNIFIED FOOTER ═════════════════════════════════════════════ */
 
 .tm-footer {
   background: var(--tm-lighter);
@@ -1594,8 +1668,8 @@ html.lenis body {
   width: clamp(96px, 10.5vw, 152px);
   aspect-ratio: 1;
   overflow: hidden;
-  border: 1px solid rgba(43, 43, 43, 0.12);
-  background: #ebebea;
+  border: 1px solid var(--tm-hairline);
+  background: var(--tm-plate-bg);
   filter: grayscale(1);
 }
 
@@ -1611,7 +1685,7 @@ html.lenis body {
   justify-content: center;
   width: 40px;
   height: 40px;
-  border: 1px solid rgba(43, 43, 43, 0.2);
+  border: 1px solid var(--tm-hairline);
   color: var(--tm-darkest);
   background: transparent;
   transition:
@@ -1622,13 +1696,13 @@ html.lenis body {
 .tm-footer__social-btn:hover {
   background: var(--tm-darkest);
   border-color: var(--tm-darkest);
-  color: #ffffff;
+  color: var(--tm-btn-ink);
 }
 
 .tm-footer__rule {
   margin: clamp(32px, 5vh, 52px) 0 0;
   border: 0;
-  border-top: 1px solid rgba(43, 43, 43, 0.09);
+  border-top: 1px solid var(--tm-hairline);
 }
 
 .tm-footer__bottom {
@@ -1796,7 +1870,7 @@ html.lenis body {
   min-height: 44px;
   cursor: pointer;
   font-size: clamp(15px, 1.5vw, 22px);
-  color: rgba(43, 43, 43, 0.36);
+  color: var(--tm-muted);
   transition: color 0.35s var(--tm-ease-p2out), border-color 0.35s var(--tm-ease-p2out);
   border-bottom: 2px solid transparent;
   display: inline-flex;
@@ -2023,7 +2097,7 @@ html.lenis body {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  border-bottom: 1px solid rgba(43, 43, 43, 0.25);
+  border-bottom: 1px solid var(--tm-border-strong);
   transition: border-color 0.2s;
 }
 .tm-inline-select:hover {
@@ -2223,15 +2297,15 @@ html.lenis body {
   min-height: 250px;
   padding: 28px 26px;
   text-align: start;
-  background: #f5f5f3;
+  background: var(--tm-path-bg);
   border: 1px solid var(--tm-hairline);
   cursor: pointer;
   color: var(--tm-darkest);
   transition: background-color 0.35s var(--tm-ease-p2out), border-color 0.35s ease;
 }
 .tm-path-card:hover {
-  background: #ecece9;
-  border-color: rgba(43, 43, 43, 0.25);
+  background: var(--tm-path-hover);
+  border-color: var(--tm-border-strong);
 }
 .tm-path-card__idx {
   display: inline-block;
@@ -2376,14 +2450,14 @@ html.lenis body {
   gap: 18px;
   padding: 14px 16px;
   border: 1px solid var(--tm-hairline);
-  background: #fafafa;
+  background: var(--tm-card-surface);
   text-decoration: none;
   color: inherit;
   transition: border-color 0.25s, background-color 0.25s;
 }
 .tm-drawer-course:hover {
   border-color: var(--tm-main);
-  background: #ffffff;
+  background: var(--tm-card-hover);
 }
 .tm-drawer-course__art {
   width: 64px;
@@ -2472,7 +2546,7 @@ html.lenis body {
   aspect-ratio: 4 / 3;
   overflow: hidden;
   border: 1px solid var(--tm-hairline);
-  background: #ebebea;
+  background: var(--tm-plate-bg);
 }
 .tm-contact-form-section {
   background: var(--tm-lightest);

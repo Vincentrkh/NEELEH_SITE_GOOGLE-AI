@@ -4,13 +4,17 @@ import { extractBrandLogoConfig, hasCustomBrandLogo } from "@/lib/brand-logo";
 import { BrandLogoGraphic } from "@/components/brand-logo";
 import { getServerLang } from "@/lib/i18n";
 import { localeCurrentYear, localeNumber } from "@/lib/format";
+import { getMenu } from "@/lib/menu";
 
 export const dynamic = "force-dynamic";
 
 export async function SiteFooter() {
-  const lang = await getServerLang();
+  const [lang, s, footerMenu] = await Promise.all([
+    getServerLang(),
+    getSiteSettings(),
+    getMenu("footer"),
+  ]);
   const fa = lang === "fa";
-  const s = await getSiteSettings();
   const brandLogo = extractBrandLogoConfig(s);
   const hasCustomLogo = hasCustomBrandLogo(brandLogo);
   const tagline = localizedSetting(lang, s, "hero.tagline");
@@ -52,37 +56,19 @@ export async function SiteFooter() {
             </p>
           </div>
 
-          {/* Academy */}
-          <nav aria-label={fa ? "آکادمی و دوره‌ها" : "Academy & Courses"}>
+          {/* Academy — Admin-configurable footer menu */}
+          <nav aria-label={fa ? "آکادمی و دسترسی سریع" : "Academy & Quick Links"}>
             <h3 className="text-xs font-semibold text-foreground mb-3">
-              {fa ? "آموزش و تقویم" : "Academy & Schedule"}
+              {fa ? "آکادمی و دسترسی سریع" : "Academy & Quick Links"}
             </h3>
             <ul className="space-y-2 text-sm text-muted-foreground">
-              <li>
-                <Link href="/courses" className="hover:text-foreground transition-colors">
-                  {fa ? "همه دوره‌ها (۹ دوره)" : "All courses (9)"}
-                </Link>
-              </li>
-              <li>
-                <Link href="/calendar" className="hover:text-foreground transition-colors">
-                  {fa ? "تقویم نوبت‌های پیش‌رو" : "Upcoming calendar"}
-                </Link>
-              </li>
-              <li>
-                <Link href="/ai-lab" className="hover:text-foreground transition-colors">
-                  {fa ? "آزمایشگاه AI و ابزارها" : "AI Lab & Roadmap"}
-                </Link>
-              </li>
-              <li>
-                <Link href="/resources" className="hover:text-foreground transition-colors">
-                  {fa ? "منابع و فایل‌های نمونه" : "Resources & Starters"}
-                </Link>
-              </li>
-              <li>
-                <Link href="/blog" className="hover:text-foreground transition-colors">
-                  {fa ? "یادداشت‌های معماری" : "Architecture Journal"}
-                </Link>
-              </li>
+              {footerMenu.map((item, idx) => (
+                <li key={`${item.href}-${idx}`}>
+                  <Link href={item.href} className="hover:text-foreground transition-colors">
+                    {fa ? item.labelFa : item.labelEn}
+                  </Link>
+                </li>
+              ))}
             </ul>
           </nav>
 

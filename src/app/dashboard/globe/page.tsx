@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { useToast } from "@/hooks/use-toast";
 import { useLang } from "@/components/language-provider";
 import { dict } from "@/lib/i18n";
@@ -14,10 +15,12 @@ import {
   Sparkles,
   Upload,
 } from "lucide-react";
-import {
-  ParticleSphereCanvas,
-  type ParticleSphereHandle,
-} from "@/components/tm/particle-sphere-canvas";
+import type { ParticleSphereHandle } from "@/components/tm/particle-sphere-canvas";
+
+const ParticleSphereCanvas = dynamic(
+  () => import("@/components/tm/particle-sphere-canvas").then((m) => m.ParticleSphereCanvas),
+  { ssr: false },
+);
 
 /* ═══════════════════════════════════════════════════════════════════════════
    /dashboard/globe — تنظیمات «Particle Sphere 5» بخش Hero

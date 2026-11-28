@@ -7,8 +7,8 @@ import { dict, getServerLang } from "@/lib/i18n";
 export const dynamic = "force-dynamic";
 
 /**
- * مدیریت منوها — مثل منوهای وردپرس.
- * دو جایگاه: منوی همبرگری اصلی (header) و دسترسی سریع فوتر (footer).
+ * مدیریت منوها — منوهای مجزا برای آکادمی نیله و دفتر نیله.
+ * چهار جایگاه: هدر/فوتر آکادمی نیله (header, footer) و هدر/فوتر دفتر نیله (office_header, office_footer).
  */
 export default async function DashboardMenusPage() {
   const user = await getCurrentUser();
@@ -18,9 +18,9 @@ export default async function DashboardMenusPage() {
   }
   const t = dict[lang].dashboard;
 
-  // اولین بار: منوی پیش‌فرض (عین وضعیت فعلی سایت) را بنشین
+  // اولین بار: فقط بخش‌هایی که منو ندارند با پیش‌فرض تکمیل می‌شوند (منوهای موجود دست‌نخورده می‌مانند)
   try {
-    await seedDefaultMenus(false);
+    await seedDefaultMenus(false, "all");
   } catch {
     // جدول آماده نیست — بی‌خیال، ادیتور خالی رندر می‌شود
   }

@@ -298,7 +298,7 @@ export function TmCityWheel({
             className={i % 2 === 0 ? "tm-svg-dash-slow" : undefined}
             d={`M -120 ${28 + i * 11} C 460 ${95 + i * 9}, 920 ${18 + i * 8}, 1480 ${75 + i * 10} S 2140 ${12 + i * 12}, 2520 ${68 + i * 9}`}
             fill="none"
-            stroke="#f0f0f0"
+            stroke="var(--tm-hairline)"
             strokeWidth="1"
           />
         ))}

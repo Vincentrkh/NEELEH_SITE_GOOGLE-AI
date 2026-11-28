@@ -1,10 +1,13 @@
 "use client";
 
 import * as React from "react";
-import {
-  ParticleSphereCanvas,
-  type ParticleSphereHandle,
-} from "@/components/tm/particle-sphere-canvas";
+import dynamic from "next/dynamic";
+import type { ParticleSphereHandle } from "@/components/tm/particle-sphere-canvas";
+
+const ParticleSphereCanvas = dynamic(
+  () => import("@/components/tm/particle-sphere-canvas").then((m) => m.ParticleSphereCanvas),
+  { ssr: false },
+);
 
 /* ═══════════════════════════════════════════════════════════════════════════
    TmHeroScene — صحنه سه‌بعدی «Particle Sphere 5» با ورود Zoom-In/Fade

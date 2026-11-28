@@ -1,6 +1,8 @@
+import { revalidatePath, revalidateTag } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requirePermission } from "@/lib/auth";
+import { isHeaderMenuLocation, isValidMenuLocation } from "@/lib/menu-defaults";
 import { apiMsg } from "@/lib/i18n";
 import { sanitizeSafeHref } from "@/lib/security";
 
@@ -24,9 +26,14 @@ type PatchBody = {
   isActive?: boolean;
 };
 
+function invalidateMenuCaches() {
+  revalidateTag("site-menus", { expire: 0 });
+  revalidatePath("/", "layout");
+}
+
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const user = await requirePermission("setting.manage");
   if (!user) return NextResponse.json({ error: await apiMsg("دسترسی مجاز نیست", "Not authorized") }, { status: 403 });
@@ -46,7 +53,7 @@ export async function PATCH(
       if (!v && !((body.labelEn ?? existing.labelEn) || "").trim()) {
         return NextResponse.json(
           { error: await apiMsg("حداقل یکی از برچسب‌ها لازم است", "At least one label is required") },
-          { status: 400 }
+          { status: 400 },
         );
       }
       data.labelFa = v || body.labelEn?.trim() || existing.labelEn;
@@ -63,7 +70,10 @@ export async function PATCH(
       data.href = v;
     }
 
-    if (existing.location === "header") {
+    const isHeaderLoc =
+      isValidMenuLocation(existing.location) && isHeaderMenuLocation(existing.location);
+
+    if (isHeaderLoc) {
       if (body.kind !== undefined) {
         if (!KINDS.includes(body.kind)) {
           return NextResponse.json({ error: await apiMsg("نوع آیتم نامعتبر است", "Invalid item type") }, { status: 400 });
@@ -86,6 +96,7 @@ export async function PATCH(
     }
 
     const item = await db.menuItem.update({ where: { id }, data });
+    invalidateMenuCaches();
     return NextResponse.json({ item });
   } catch (e) {
     console.error("[menus PATCH]", e);
@@ -95,7 +106,7 @@ export async function PATCH(
 
 export async function DELETE(
   _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const user = await requirePermission("setting.manage");
   if (!user) return NextResponse.json({ error: await apiMsg("دسترسی مجاز نیست", "Not authorized") }, { status: 403 });
@@ -107,6 +118,7 @@ export async function DELETE(
       return NextResponse.json({ error: await apiMsg("آیتم یافت نشد", "Item not found") }, { status: 404 });
     }
     await db.menuItem.delete({ where: { id } });
+    invalidateMenuCaches();
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("[menus DELETE]", e);

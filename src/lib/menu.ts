@@ -1,49 +1,90 @@
+import { cache } from "react";
+import { unstable_cache } from "next/cache";
 import { db } from "@/lib/db";
-import { PRESET_MENU, type MenuLocation, type PublicMenuItem } from "@/lib/menu-defaults";
+import {
+  getLocationsForDivision,
+  PRESET_MENU,
+  type MenuDivision,
+  type MenuLocation,
+  type PublicMenuItem,
+} from "@/lib/menu-defaults";
 
 /**
- * مدیریت منوها — مثل منوهای وردپرس.
+ * مدیریت منوهای دو بخش مجزای سایت (آکادمی نیله و دفتر نیله):
  *
- * دو جایگاه (location):
- *   - "header": منوی همبرگری امضادار صفحه اصلی (بلوک‌های پلکانی)
- *   - "footer": ستون «دسترسی سریع» فوتر
+ *   - "header" / "footer"               -> Neeleh Academy (آکادمی نیله)
+ *   - "office_header" / "office_footer" -> Neeleh Office  (دفتر نیله)
  *
- * اگر دیتابیس خالی بود یا در دسترس نبود، PRESET_MENU (منوی پیش‌فرض برابر
- * وضعیت فعلی سایت) استفاده می‌شود — یعنی ظاهر سایت هرگز خراب نمی‌شود.
+ * کش سرور با React cache() + unstable_cache(tag: "site-menus") انجام می‌شود
+ * تا سرعت بارگذاری روی اینترنت کند حداکثر باشد و در هر ویرایش در پنل مدیریت فوراً پاک شود.
  */
 
 export { PRESET_MENU };
-export type { MenuLocation, PublicMenuItem };
+export type { MenuDivision, MenuLocation, PublicMenuItem };
 
-/** آیتم‌های فعال یک جایگاه را به ترتیب برمی‌گرداند (با fallback پیش‌فرض). */
-export async function getMenu(location: MenuLocation): Promise<PublicMenuItem[]> {
-  const fallback = () =>
-    PRESET_MENU.filter((m) => m.location === location).map((m, i) => ({
-      ...m,
-      id: `preset-${location}-${i}`,
-    }));
-  try {
-    const rows = await db.menuItem.findMany({
-      where: { location, isActive: true },
-      orderBy: [{ order: "asc" }, { createdAt: "asc" }],
-    });
-    if (rows.length === 0) return fallback();
-    return rows as PublicMenuItem[];
-  } catch {
-    return fallback();
-  }
+function fallbackMenu(location: MenuLocation): PublicMenuItem[] {
+  return PRESET_MENU.filter((m) => m.location === location).map((m, i) => ({
+    ...m,
+    id: `preset-${location}-${i}`,
+  }));
 }
 
+const getCachedMenuFromDb = unstable_cache(
+  async (location: MenuLocation): Promise<PublicMenuItem[]> => {
+    try {
+      const rows = await db.menuItem.findMany({
+        where: { location, isActive: true },
+        orderBy: [{ order: "asc" }, { createdAt: "asc" }],
+      });
+      if (rows.length === 0) return fallbackMenu(location);
+      return rows as PublicMenuItem[];
+    } catch {
+      return fallbackMenu(location);
+    }
+  },
+  ["site-menu-by-location"],
+  { revalidate: 300, tags: ["site-menus"] },
+);
+
+/** آیتم‌های فعال یک جایگاه را به ترتیب برمی‌گرداند (با کش و fallback ایمن). */
+export const getMenu = cache(async (location: MenuLocation): Promise<PublicMenuItem[]> => {
+  return getCachedMenuFromDb(location);
+});
+
 /**
- * منوی پیش‌فرض را در دیتابیس می‌نویسد (فقط اگر جدول خالی باشد؛
- * یا با force=true همه را پاک و بازنویسی می‌کند — برای «بازنشانی»).
+ * منوی پیش‌فرض را به‌صورت غیرمخرب و تفکیک‌شده در دیتابیس می‌نویسد:
+ * - وقتی force=false است، هر بخش (academy یا office) فقط اگر خودش هیچ رکوردی نداشته باشد مقداردهی می‌شود؛
+ *   بنابراین تنظیمات و منوهای موجود سایت اصلی (neeleh.com) هرگز تغییر نمی‌کنند.
+ * - وقتی force=true است، فقط جایگاه‌های بخش انتخابی بازنشانی می‌شوند.
  */
-export async function seedDefaultMenus(force = false): Promise<number> {
-  const existing = await db.menuItem.count();
-  if (existing > 0 && !force) return existing;
+export async function seedDefaultMenus(
+  force = false,
+  division: MenuDivision | "all" = "all",
+): Promise<number> {
+  const divisionsToCheck: MenuDivision[] =
+    division === "all" ? ["academy", "office"] : [division];
 
-  if (force) await db.menuItem.deleteMany({});
+  let inserted = 0;
 
-  await db.menuItem.createMany({ data: PRESET_MENU });
-  return PRESET_MENU.length;
+  for (const div of divisionsToCheck) {
+    const locs = getLocationsForDivision(div);
+    if (force) {
+      await db.menuItem.deleteMany({ where: { location: { in: locs } } });
+    } else {
+      const existing = await db.menuItem.count({
+        where: { location: { in: locs } },
+      });
+      if (existing > 0) continue;
+    }
+
+    const presetRows = PRESET_MENU.filter((m) =>
+      locs.includes(m.location),
+    );
+    if (presetRows.length > 0) {
+      await db.menuItem.createMany({ data: presetRows });
+      inserted += presetRows.length;
+    }
+  }
+
+  return inserted;
 }

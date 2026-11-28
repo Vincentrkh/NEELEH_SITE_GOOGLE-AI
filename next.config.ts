@@ -3,6 +3,10 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   distDir: process.env.NEXT_DIST_DIR || ".next",
   output: "standalone",
+  compress: true,
+  images: {
+    formats: ["image/avif", "image/webp"],
+  },
   outputFileTracingExcludes: {
     "*": [
       "./db/**",

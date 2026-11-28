@@ -23,12 +23,21 @@ export function Preloader() {
     let finishTimer: ReturnType<typeof setTimeout>;
     let cancelled = false;
 
+    const alreadySeen =
+      typeof window !== "undefined" &&
+      (() => {
+        try {
+          return window.sessionStorage.getItem("neeleh_seen_preloader") === "1";
+        } catch {
+          return false;
+        }
+      })();
+
     const reduced =
       typeof window !== "undefined" &&
       window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-    if (reduced) {
-      // Skip animation entirely
+    if (reduced || alreadySeen) {
       finishTimer = setTimeout(() => {
         if (!cancelled) {
           setCount(100);
@@ -42,7 +51,7 @@ export function Preloader() {
     }
 
     const start = performance.now();
-    const duration = 1700;
+    const duration = 260;
 
     const tick = (now: number) => {
       if (cancelled) return;
@@ -52,9 +61,14 @@ export function Preloader() {
       if (t < 1) {
         raf = requestAnimationFrame(tick);
       } else {
+        try {
+          window.sessionStorage.setItem("neeleh_seen_preloader", "1");
+        } catch {
+          /* ignore */
+        }
         finishTimer = setTimeout(() => {
           if (!cancelled) setDone(true);
-        }, 350);
+        }, 60);
       }
     };
     raf = requestAnimationFrame(tick);
@@ -73,7 +87,7 @@ export function Preloader() {
           key="preloader"
           initial={{ y: "0%" }}
           exit={{ y: "-100%" }}
-          transition={{ duration: 0.9, ease: [0.76, 0, 0.24, 1] }}
+          transition={{ duration: 0.34, ease: [0.76, 0, 0.24, 1] }}
           className="fixed inset-0 z-[9999] bg-background flex items-end justify-end pointer-events-none"
         >
           <div className="px-5 sm:px-8 lg:px-12 pb-8 sm:pb-12">
