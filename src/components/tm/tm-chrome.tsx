@@ -75,13 +75,28 @@ const COURSE_SUBMENU: readonly {
 
 const FOOTER_PLATES: TmPlateVariant[] = ["atelier", "drafting", "bim", "parametric", "ai"];
 
-/** Three-peak architectural mark */
+/** Main Neeleh geometric logo mark (matches /logo.svg) */
 export function TmMark({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 34 20" className={className} aria-hidden="true">
-      <polygon points="1,19 9,4 14,12 10,19" />
-      <polygon points="10,19 17,1 24,19" />
-      <polygon points="20,19 25,12 30,19 24,19" />
+    <svg viewBox="0 0 30 30" className={className} aria-hidden="true">
+      <path
+        className="tm-logo__frame"
+        d="M24.51,28.51H5.49c-2.21,0-4-1.79-4-4V5.49c0-2.21,1.79-4,4-4h19.03c2.21,0,4,1.79,4,4v19.03C28.51,26.72,26.72,28.51,24.51,28.51z"
+      />
+      <g>
+        <path
+          className="tm-logo__glyph"
+          d="M15.47,7.1l-1.3,1.85c-0.2,0.29-0.54,0.47-0.9,0.47h-7.1V7.09C6.16,7.1,15.47,7.1,15.47,7.1z"
+        />
+        <polygon
+          className="tm-logo__glyph"
+          points="24.3,7.1 13.14,22.91 5.7,22.91 16.86,7.1"
+        />
+        <path
+          className="tm-logo__glyph"
+          d="M14.53,22.91l1.31-1.86c0.2-0.29,0.54-0.47,0.9-0.47h7.09v2.33H14.53z"
+        />
+      </g>
     </svg>
   );
 }
@@ -197,6 +212,13 @@ export function TmHeader({
     setOpen(false);
     setMegaOpen(false);
   }, [pathname]);
+
+  React.useEffect(() => {
+    document.body.dataset.menuOpen = open || megaOpen ? "true" : "false";
+    return () => {
+      document.body.dataset.menuOpen = "false";
+    };
+  }, [open, megaOpen]);
 
   const openMega = () => {
     if (hoverTimer.current) window.clearTimeout(hoverTimer.current);

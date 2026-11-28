@@ -25,11 +25,29 @@ const activeDistPath = path.join(dbDir, ".active-dist");
 const reloadTriggerPath = path.join(dbDir, ".reload-trigger");
 const ALLOWED_DISTS = new Set([".next", ".next-blue"]);
 
+function hasCompiledCss(dir) {
+  if (!fs.existsSync(dir)) return false;
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (hasCompiledCss(full)) return true;
+    } else if (entry.isFile() && entry.name.endsWith(".css")) {
+      try {
+        if (fs.statSync(full).size > 0) return true;
+      } catch {
+        // ignore
+      }
+    }
+  }
+  return false;
+}
+
 function hasBuild(distDir) {
-  return (
+  const hasEntry =
     fs.existsSync(path.join(root, distDir, "BUILD_ID")) ||
-    fs.existsSync(path.join(root, distDir, "standalone", "server.js"))
-  );
+    fs.existsSync(path.join(root, distDir, "standalone", "server.js"));
+  if (!hasEntry) return false;
+  return hasCompiledCss(path.join(root, distDir, "static"));
 }
 
 function resolveInitialDist() {

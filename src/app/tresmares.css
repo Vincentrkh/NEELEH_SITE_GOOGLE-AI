@@ -307,17 +307,28 @@ html.lenis body {
 }
 .tm-logo__mark {
   width: 24px;
-  height: 15px;
+  height: 24px;
   display: block;
   flex-shrink: 0;
 }
-.tm-logo__mark path,
-.tm-logo__mark polygon {
+.tm-logo__frame {
   fill: var(--tm-darkest);
+  stroke: var(--tm-hairline);
+  stroke-width: 0.75;
+  transition:
+    fill 0.3s var(--tm-ease-p2out),
+    stroke 0.3s var(--tm-ease-p2out);
+}
+.tm-logo__glyph {
+  fill: var(--tm-btn-ink);
   transition: fill 0.3s var(--tm-ease-p2out);
 }
-.tm-logo:hover .tm-logo__mark polygon {
+.tm-logo:hover .tm-logo__frame {
   fill: var(--tm-main);
+  stroke: var(--tm-main);
+}
+.tm-logo:hover .tm-logo__glyph {
+  fill: #ffffff;
 }
 .tm-logo__text {
   font-size: clamp(11.5px, 2.8vw, 13.5px);
@@ -767,9 +778,23 @@ html.lenis body {
 .tm-hero {
   position: relative;
   min-height: 100svh;
-  background: var(--tm-white);
+  background: var(--tm-white, var(--background));
   overflow-x: clip;
   overflow-y: visible;
+}
+.tm-hero--brush {
+  background: transparent;
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+}
+.tm-hero--brush .tm-hero__frame {
+  flex: 1 1 auto;
+  min-height: 100svh;
+  padding-bottom: clamp(68px, 8vh, 88px);
+}
+.tm-hero--brush .tm-hero__scroll {
+  bottom: clamp(64px, 7vh, 78px);
 }
 .tm-hero--page {
   min-height: 68svh;
@@ -787,7 +812,7 @@ html.lenis body {
   display: flex;
   align-items: stretch;
   overflow: hidden;
-  background: var(--tm-white);
+  background: var(--tm-white, var(--background));
   --tm-sphere-scale: 1;
   --tm-sphere-opacity: 1;
   --tm-backdrop-opacity: 1;

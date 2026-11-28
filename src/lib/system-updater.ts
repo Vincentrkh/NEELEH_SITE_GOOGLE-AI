@@ -20,6 +20,7 @@ import {
   listBackupArchives,
   resolveSafeBackupPath,
 } from "@/lib/backup-manager";
+import { resolveProductionBuildAndReloadPlan } from "@/lib/updater-runtime-plan";
 
 const execFileAsync = promisify(execFile);
 
@@ -694,6 +695,7 @@ export async function applyZeroDowntimeUpdate(params: {
       ".next",
       ".next-blue",
       ".next-live",
+      ".next-static-preserve",
       "node_modules",
       "backups",
       ".git",
@@ -891,11 +893,14 @@ export async function applyZeroDowntimeUpdate(params: {
     }
 
     // Step 3A: Install dependencies only if package.json changed
+    // Force NODE_ENV=development + --include=dev so build-time packages (tailwindcss, @tailwindcss/postcss)
+    // are never pruned when running inside a production server process.
     await updateStageLog(activeLogId, "۳/۴ در حال بررسی وابستگی‌ها و همگام‌سازی دیتابیس...");
     const pkgHashAfter = await sha256File(path.join(root, "package.json"));
     if (pkgHashAfter && pkgHashAfter !== pkgHashBefore) {
-      await execCmd("npm", ["install", "--no-audit", "--no-fund"], {
+      await execCmd("npm", ["install", "--include=dev", "--no-audit", "--no-fund"], {
         cwd: root,
+        env: { ...process.env, NODE_ENV: "development" },
         timeout: 180_000,
       });
     }
@@ -942,19 +947,22 @@ export async function applyZeroDowntimeUpdate(params: {
     if (isProduction) {
       const pm2Name = await detectPm2AppName();
       const supervisorActive = isSupervisorActive(root);
-      const customRestartCmd = process.env.UPDATE_RESTART_CMD?.trim();
-      const canHandoff =
-        !pm2Name &&
-        !supervisorActive &&
-        !customRestartCmd &&
-        !isCloudRun &&
+      const customRestartCmd = process.env.UPDATE_RESTART_CMD?.trim() || "";
+      const hasHandoffScripts =
         fs.existsSync(path.join(root, "scripts", "handoff-restart.mjs")) &&
         fs.existsSync(path.join(root, "scripts", "prod-server.mjs"));
+      const activeDist = readActiveDist(root);
 
-      if (supervisorActive || canHandoff) {
-        const currentDist = readActiveDist(root);
-        buildDistDir = currentDist === ".next" ? ".next-blue" : ".next";
-      }
+      const plan = resolveProductionBuildAndReloadPlan({
+        supervisorActive,
+        pm2Name,
+        customRestartCmd,
+        isCloudRun,
+        hasHandoffScripts,
+        activeDist,
+      });
+
+      buildDistDir = plan.buildDistDir;
 
       await updateStageLog(
         activeLogId,
@@ -968,15 +976,11 @@ export async function applyZeroDowntimeUpdate(params: {
       });
       built = true;
 
-      if (pm2Name) {
-        reloadMethod = "pm2";
-        reloaded = true;
-        setTimeout(() => {
-          void execCmd("pm2", ["reload", pm2Name, "--update-env"], { cwd: root }).catch(() => {});
-        }, 700);
-      } else if (supervisorActive) {
+      if (plan.reloadStrategy === "supervisor") {
         reloadMethod = "supervisor";
         reloaded = true;
+        await fs.promises.mkdir(path.join(root, "db"), { recursive: true });
+        await fs.promises.writeFile(path.join(root, "db", ".active-dist"), buildDistDir, "utf8");
         const triggerFile = path.join(root, "db", ".reload-trigger");
         await fs.promises.writeFile(
           triggerFile,
@@ -987,7 +991,28 @@ export async function applyZeroDowntimeUpdate(params: {
           }),
           "utf8",
         );
-      } else if (customRestartCmd) {
+      } else if (plan.reloadStrategy === "pm2" && pm2Name) {
+        reloadMethod = "pm2";
+        reloaded = true;
+        setTimeout(() => {
+          void execCmd("pm2", ["reload", pm2Name, "--update-env"], { cwd: root }).catch(
+            (reloadErr) => {
+              console.warn(
+                `[system-updater] pm2 reload ${pm2Name} failed, falling back to pm2 restart:`,
+                reloadErr instanceof Error ? reloadErr.message : reloadErr,
+              );
+              return execCmd("pm2", ["restart", pm2Name, "--update-env"], { cwd: root }).catch(
+                (restartErr) => {
+                  console.error(
+                    `[system-updater] pm2 restart ${pm2Name} failed:`,
+                    restartErr instanceof Error ? restartErr.message : restartErr,
+                  );
+                },
+              );
+            },
+          );
+        }, 500);
+      } else if (plan.reloadStrategy === "custom" && customRestartCmd) {
         reloadMethod = "custom";
         reloaded = true;
         setTimeout(() => {
@@ -997,8 +1022,8 @@ export async function applyZeroDowntimeUpdate(params: {
             { cwd: root },
             () => {},
           );
-        }, 700);
-      } else if (canHandoff) {
+        }, 500);
+      } else if (plan.reloadStrategy === "handoff") {
         reloadMethod = "handoff";
         reloaded = true;
         pendingHandoff = true;

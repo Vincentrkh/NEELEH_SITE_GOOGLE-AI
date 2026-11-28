@@ -2,15 +2,29 @@
 
 import * as React from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { motion, useMotionValueEvent, useScroll, useTransform, useSpring } from "framer-motion";
 import { useLang } from "@/components/language-provider";
 import { toFaDigits } from "@/lib/i18n";
 import { TMX_STATS_FALLBACK } from "@/config/tm-theme";
 import { TmWordFill, TmMaskText, TmCounter } from "@/components/tm/tm-effects";
-import { TmHeroScene } from "@/components/tm/tm-hero-scene";
-import type { ParticleSphereHandle } from "@/components/tm/particle-sphere-canvas";
+import { FluidReveal, DEFAULT_BRUSH_RADIUS } from "@/components/fluid-reveal";
+import { DEFAULT_REVEAL_BG, type RevealBg } from "@/components/brush-settings";
+import { OrbitTiles, type OrbitTile } from "@/components/orbit-tiles";
 import { TmInstructorPortraitSvg } from "@/components/tm/tm-svg-art";
 import { BlockReveal, HeroBlockEntrance } from "@/components/block-reveal";
+
+const BrushSettings = dynamic(
+  () => import("@/components/brush-settings").then((m) => m.BrushSettings),
+  { ssr: false },
+);
+
+const OFFICE_TILES: OrbitTile[] = [
+  { src: "/images/tm/office-1.png", alt: "Neeleh Office — Architectural Systems", href: "#about-intro" },
+  { src: "/images/tm/office-2.png", alt: "Neeleh Office — BIM Governance", href: "#about-intro" },
+  { src: "/images/tm/office-3.png", alt: "Neeleh Office — Execution Craft", href: "#about-intro" },
+  { src: "/images/hero.png", alt: "Neeleh Studio & Academy", href: "#top" },
+];
 
 /* ═══════════════════════════════════════════════════════════════════════════
    TM Sections — Exact Band 1, Band 2/4, Band 3 (6 KPI Grid), Band 7 (Team)
@@ -26,143 +40,67 @@ export type TmData = {
   instructors: { id: string; name: string; field: string | null; avatarUrl: string | null }[];
 };
 
-/* ── Band 1: Hero (Sticky Scroll-Driven Sphere Scenes + Zoom-In/Out Fade) ── */
+/* ── Band 1: Hero (Brush-Reveal Canvas + Orbit Tiles + Stepped Editorial Copy) ── */
 
 export function TmHero() {
   const { lang } = useLang();
   const fa = lang === "fa";
 
-  const heroRef = React.useRef<HTMLElement>(null);
-  const stickyRef = React.useRef<HTMLDivElement>(null);
-  const sphereRef = React.useRef<ParticleSphereHandle>(null);
-  const activeSceneRef = React.useRef(0);
-
-  const [sceneCount, setSceneCount] = React.useState(4);
-  const [activeScene, setActiveScene] = React.useState(0);
-
-  React.useEffect(() => {
-    const applyScrollProgress = () => {
-      const heroEl = heroRef.current;
-      const stickyEl = stickyRef.current;
-      if (!heroEl || !stickyEl) return;
-
-      const rect = heroEl.getBoundingClientRect();
-      const travel = Math.max(1, heroEl.offsetHeight - window.innerHeight);
-      const p = Math.min(1, Math.max(0, -rect.top / travel));
-
-      const count = Math.max(1, sceneCount);
-      const activePhase = Math.min(0.9999, Math.max(0, p / 0.76));
-      const idx = Math.min(count - 1, Math.floor(activePhase * count));
-      if (idx !== activeSceneRef.current) {
-        activeSceneRef.current = idx;
-        setActiveScene(idx);
-        sphereRef.current?.goScene(idx);
-      }
-
-      const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      if (reduced) {
-        stickyEl.style.setProperty("--tm-sphere-scale", "1");
-        stickyEl.style.setProperty("--tm-sphere-opacity", "1");
-        stickyEl.style.setProperty("--tm-backdrop-opacity", "1");
-        stickyEl.style.setProperty("--tm-copy-opacity", "1");
-        stickyEl.style.setProperty("--tm-copy-y", "0px");
-        return;
-      }
-
-      // Exit Zoom-Out + Fade-Out smoothly after last scene (p in [0.74, 0.94])
-      const exitRaw = Math.min(1, Math.max(0, (p - 0.74) / 0.2));
-      const exitEase = 1 - Math.pow(1 - exitRaw, 2.2);
-      const copyRaw = Math.min(1, Math.max(0, (p - 0.7) / 0.2));
-      const copyEase = 1 - Math.pow(1 - copyRaw, 2);
-
-      const sphereScale = 1 - exitEase * 0.48; // 1 -> 0.52
-      const sphereOpacity = 1 - exitEase; // 1 -> 0
-      const backdropOpacity = 1 - exitEase; // 1 -> 0 into #fff Band 2
-      const copyOpacity = 1 - copyEase; // 1 -> 0
-      const copyY = -copyEase * 52; // 0 -> -52px
-
-      stickyEl.style.setProperty("--tm-sphere-scale", sphereScale.toFixed(4));
-      stickyEl.style.setProperty("--tm-sphere-opacity", sphereOpacity.toFixed(4));
-      stickyEl.style.setProperty("--tm-backdrop-opacity", backdropOpacity.toFixed(4));
-      stickyEl.style.setProperty("--tm-copy-opacity", copyOpacity.toFixed(4));
-      stickyEl.style.setProperty("--tm-copy-y", `${copyY.toFixed(1)}px`);
-    };
-
-    applyScrollProgress();
-    window.addEventListener("scroll", applyScrollProgress, { passive: true });
-    window.addEventListener("resize", applyScrollProgress, { passive: true });
-    return () => {
-      window.removeEventListener("scroll", applyScrollProgress);
-      window.removeEventListener("resize", applyScrollProgress);
-    };
-  }, [sceneCount]);
-
-  const handleScenesCountChange = React.useCallback((count: number) => {
-    setSceneCount(Math.max(1, count));
-  }, []);
-
-  const handleActiveSceneChange = React.useCallback((index: number) => {
-    activeSceneRef.current = index;
-    setActiveScene(index);
-  }, []);
+  const [brushRadius, setBrushRadius] = React.useState(DEFAULT_BRUSH_RADIUS);
+  const [revealBg, setRevealBg] = React.useState<RevealBg>(DEFAULT_REVEAL_BG);
 
   const lines = fa ? ["طراحی", "فراتر از", "ابزار."] : ["Design", "beyond", "tools."];
-  const stepCur = String(Math.min(sceneCount, activeScene + 1)).padStart(2, "0");
-  const stepMax = String(sceneCount).padStart(2, "0");
-  const runwayHeights = Math.max(280, sceneCount * 85 + 100);
 
   return (
-    <section
-      ref={heroRef}
-      className="tm-hero"
-      id="top"
-      style={{ height: `${runwayHeights}svh` }}
-    >
-      <div ref={stickyRef} className="tm-hero__sticky">
-        <TmHeroScene
-          sphereRef={sphereRef}
-          onScenesCountChange={handleScenesCountChange}
-          onActiveSceneChange={handleActiveSceneChange}
-        />
+    <div className="relative bg-[var(--tm-white)]">
+      <FluidReveal
+        maskColor="var(--tm-white)"
+        brushRadius={brushRadius}
+        revealBackground={revealBg.value}
+        revealContent={<OrbitTiles tiles={OFFICE_TILES} />}
+      >
+        <section className="tm-hero tm-hero--brush" id="top">
+          <div className="tm-hero__frame">
+            <h1 className="tm-hero__title" dir={fa ? "rtl" : "ltr"}>
+              <HeroBlockEntrance delay={0.05}>
+                {lines.map((l, i) => (
+                  <span key={i} className="tm-hero__line">
+                    {l}
+                  </span>
+                ))}
+              </HeroBlockEntrance>
+            </h1>
 
-        <div className="tm-hero__frame">
-          <h1
-            className="tm-hero__title tm-hero__copy"
-            dir={fa ? "rtl" : "ltr"}
-          >
-            <HeroBlockEntrance delay={0.05}>
-              {lines.map((l, i) => (
-                <span key={i} className="tm-hero__line">
-                  {l}
-                </span>
-              ))}
+            <HeroBlockEntrance delay={0.14} className="tm-hero__aside">
+              <TmMaskText
+                as="p"
+                className="tm-hero__sub"
+                delay={0.12}
+                text={
+                  fa
+                    ? "دفتر تخصصی معماری و سیستم‌های BIM — از اسکیس و فاز دوم تا طراحی پارامتریک و هوش مصنوعی."
+                    : "An architecture & BIM systems practice — from Phase-2 drafting and BIM governance to AI workflows."
+                }
+              />
+              <Link href="/paths" className="tm-link tm-hero__cta">
+                {fa ? "مسیرها و خدمات دفتر" : "Explore practice"}
+              </Link>
             </HeroBlockEntrance>
-          </h1>
 
-          <HeroBlockEntrance delay={0.14} className="tm-hero__aside tm-hero__copy">
-            <TmMaskText
-              as="p"
-              className="tm-hero__sub"
-              delay={0.12}
-              text={
-                fa
-                  ? "آموزش هدفمند برای معماران و متخصصان BIM — از ترسیم فاز دوم تا طراحی پارامتریک و هوش مصنوعی."
-                  : "Tailored education for ambitious architects and BIM leaders — from execution drafting to AI workflows."
-              }
-            />
-            <Link href="/paths" className="tm-link tm-hero__cta">
-              {fa ? "مسیرهای آموزشی" : "Learning paths"}
-            </Link>
-          </HeroBlockEntrance>
+            <span className="tm-hero__scroll">
+              {fa ? "حرکت قلم روی بوم · اسکرول" : "Brush reveal · Scroll"}
+            </span>
+          </div>
+        </section>
+      </FluidReveal>
 
-          <span className="tm-hero__scroll tm-hero__copy">
-            {fa
-              ? `${toFaDigits(stepCur)} / ${toFaDigits(stepMax)} · اسکرول`
-              : `${stepCur} / ${stepMax} · Scroll`}
-          </span>
-        </div>
-      </div>
-    </section>
+      <BrushSettings
+        value={brushRadius}
+        onChange={setBrushRadius}
+        bg={revealBg}
+        onBgChange={setRevealBg}
+      />
+    </div>
   );
 }
 

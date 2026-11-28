@@ -92,6 +92,24 @@ function formatArchiveBytes(bytes: number, fa: boolean): string {
   return `${(mb / 1024).toFixed(2)} GB`;
 }
 
+async function waitForHealthyAndReload(initialDelayMs = 1500) {
+  await new Promise((r) => setTimeout(r, initialDelayMs));
+  const deadline = Date.now() + 18_000;
+  while (Date.now() < deadline) {
+    try {
+      const res = await fetch(`/api/health/?t=${Date.now()}`, { cache: "no-store" });
+      if (res.ok) {
+        window.location.reload();
+        return;
+      }
+    } catch {
+      // Server mid-handoff or worker swapping — retry shortly
+    }
+    await new Promise((r) => setTimeout(r, 600));
+  }
+  window.location.reload();
+}
+
 export function SystemUpdaterPanel({
   initialData,
 }: {
@@ -252,12 +270,10 @@ export function SystemUpdaterPanel({
         toast({
           title: doneTitle,
           description: fa
-            ? "صفحه به‌طور خودکار برای نمایش تغییرات ریلود می‌شود..."
-            : "Reloading page to apply updated assets...",
+            ? "صفحه پس از آماده‌شدن سرور به‌طور خودکار ریلود می‌شود..."
+            : "Reloading once the updated server worker is ready...",
         });
-        setTimeout(() => {
-          window.location.reload();
-        }, 1200);
+        void waitForHealthyAndReload(1500);
       } catch {
         if (cancelled) return;
         if (transientErrorsRef.current < 24) {
@@ -519,9 +535,7 @@ export function SystemUpdaterPanel({
       if (action === "rollback" || action === "restore_file") {
         router.refresh();
       } else if (action === "apply" && !json.needsRestart) {
-        setTimeout(() => {
-          window.location.reload();
-        }, 1200);
+        void waitForHealthyAndReload(1500);
       }
     } catch (err) {
       const errText =
